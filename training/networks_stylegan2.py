@@ -97,7 +97,7 @@ def apply_identity(x):
 
 
 def apply_adaptive_scale(x):
-    s = get_weight([x.shape[1].value, 1, 1], weight_var='adapt/mod_weight')
+    s = tf.get_variable('adapt/mod_weight', shape=[x.shape[1].value, 1, 1], initializer=tf.initializers.ones()) # Init to 1
     return x * s
 
 
