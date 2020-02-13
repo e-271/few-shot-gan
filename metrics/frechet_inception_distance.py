@@ -60,6 +60,7 @@ class FID(metric_base.MetricBase):
         for begin in range(0, self.num_images, minibatch_size):
             self._report_progress(begin, self.num_images)
             end = min(begin + minibatch_size, self.num_images)
+            import pdb; pdb.set_trace()
             activations[begin:end] = np.concatenate(tflib.run(result_expr), axis=0)[:end-begin]
         mu_fake = np.mean(activations, axis=0)
         sigma_fake = np.cov(activations, rowvar=False)

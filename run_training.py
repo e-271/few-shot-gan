@@ -25,6 +25,9 @@ _valid_configs = [
     'config-e', # + No growing, new G & D arch.
     'config-f', # + Large networks (default)
 
+    # Adaptive
+    'config-g',
+
     # Table 2
     'config-e-Gorig-Dorig',   'config-e-Gorig-Dresnet',   'config-e-Gorig-Dskip',
     'config-e-Gresnet-Dorig', 'config-e-Gresnet-Dresnet', 'config-e-Gresnet-Dskip',
@@ -33,7 +36,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics):
+def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl):
     train     = EasyDict(run_func_name='training.training_loop.training_loop') # Options for training loop.
     G         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
     D         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
@@ -49,7 +52,10 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, m
     train.data_dir = data_dir
     train.total_kimg = total_kimg
     train.mirror_augment = mirror_augment
-    train.image_snapshot_ticks = train.network_snapshot_ticks = 10
+    train.image_snapshot_ticks = train.network_snapshot_ticks = 1
+    train.resume_pkl = resume_pkl
+    G.scale_func = 'training.networks_stylegan2.apply_identity'
+    D.scale_func = None
     sched.G_lrate_base = sched.D_lrate_base = 0.002
     sched.minibatch_size_base = 32
     sched.minibatch_gpu_base = 4
@@ -68,7 +74,7 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, m
     desc += '-' + config_id
 
     # Configs A-E: Shrink networks to match original StyleGAN.
-    if config_id != 'config-f':
+    if config_id not in ['config-f', 'config-g']:
         G.fmap_base = D.fmap_base = 8 << 10
 
     # Config E: Set gamma to 100 and override G & D architecture.
@@ -105,6 +111,14 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, m
     if config_id == 'config-a':
         G = EasyDict(func_name='training.networks_stylegan.G_style')
         D = EasyDict(func_name='training.networks_stylegan.D_basic')
+
+    # Config G: Replace mapping network with adaptive scaling parameters.
+    if config_id == 'config-g':
+        G['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale'
+        G['train_scope'] = '.*/adapt'
+        D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale'
+        D['train_scope'] = '.*/adapt'
+        train.resume_with_new_nets = True
 
     if gamma is not None:
         D_loss.gamma = gamma
@@ -168,6 +182,7 @@ def main():
     parser.add_argument('--gamma', help='R1 regularization weight (default is config dependent)', default=None, type=float)
     parser.add_argument('--mirror-augment', help='Mirror augment (default: %(default)s)', default=False, metavar='BOOL', type=_str_to_bool)
     parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid50k', type=_parse_comma_sep)
+    parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')
 
     args = parser.parse_args()
 

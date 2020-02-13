@@ -70,17 +70,16 @@ class Network:
         var_global_to_local: Mapping from variable global names to local names.
     """
 
-    def __init__(self, name: str = None, func_name: Any = None, **static_kwargs):
+    def __init__(self, name: str = None, func_name: Any = None, train_scope: str = '',  **static_kwargs):
         tfutil.assert_tf_initialized()
         assert isinstance(name, str) or name is None
         assert func_name is not None
         assert isinstance(func_name, str) or util.is_top_level_function(func_name)
         assert util.is_pickleable(static_kwargs)
-
         self._init_fields()
         self.name = name
         self.static_kwargs = util.EasyDict(static_kwargs)
-
+        self.train_scope = train_scope
         # Locate the user-specified network build function.
         if util.is_top_level_function(func_name):
             func_name = util.get_top_level_function_name(func_name)
@@ -100,6 +99,7 @@ class Network:
     def _init_fields(self) -> None:
         self.name = None
         self.scope = None
+        self.train_scope = ''
         self.static_kwargs = util.EasyDict()
         self.components = util.EasyDict()
         self.num_inputs = 0
@@ -181,7 +181,9 @@ class Network:
         self.own_vars = OrderedDict((var.name[len(self.scope) + 1:].split(":")[0], var) for var in tf.global_variables(self.scope + "/"))
         self.vars = OrderedDict(self.own_vars)
         self.vars.update((comp.name + "/" + name, var) for comp in self.components.values() for name, var in comp.vars.items())
-        self.trainables = OrderedDict((name, var) for name, var in self.vars.items() if var.trainable)
+
+        # self.trainables = OrderedDict((var.name.split(":")[0], var) for var in tf.global_variables(self.scope + self.train_scope) if var.trainable)
+        self.trainables = OrderedDict((name, var) for name, var in self.vars.items() if (var.trainable and re.match(self.train_scope, name)))
         self.var_global_to_local = OrderedDict((var.name.split(":")[0], name) for name, var in self.vars.items())
 
     def reset_own_vars(self) -> None:
@@ -195,6 +197,14 @@ class Network:
     def reset_trainables(self) -> None:
         """Re-initialize all trainable variables of this network, including sub-networks."""
         tfutil.run([var.initializer for var in self.trainables.values()])
+
+
+    def set_trainable_scope(self, train_scope):
+        """Set trainable variables to only those within self.scope + train_scope."""
+        av=tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.scope + train_scope)
+        tv=OrderedDict((var.name.split(":")[0], var) for var in av)
+        self.trainables = tv
+
 
     def get_output_for(self, *in_expr: TfExpression, return_as_list: bool = False, **dynamic_kwargs) -> Union[TfExpression, List[TfExpression]]:
         """Construct TensorFlow expression(s) for the output(s) of this network, given the input expression(s)."""
@@ -298,7 +308,7 @@ class Network:
         self.reset_own_vars()
         tfutil.set_vars({self.find_var(name): value for name, value in state["variables"]})
 
-    def clone(self, name: str = None, **new_static_kwargs) -> "Network":
+    def clone(self, name: str = None, train_scope: str = None, **new_static_kwargs) -> "Network":
         """Create a clone of this network with its own copy of the variables."""
         # pylint: disable=protected-access
         net = object.__new__(Network)
@@ -309,6 +319,7 @@ class Network:
         net._build_module_src = self._build_module_src
         net._build_func_name = self._build_func_name
         net._build_func = self._build_func
+        net.train_scope = train_scope if train_scope is not None else self.train_scope
         net._init_graph()
         net.copy_vars_from(self)
         return net
@@ -321,6 +332,8 @@ class Network:
     def copy_vars_from(self, src_net: "Network") -> None:
         """Copy the values of all variables from the given network, including sub-networks."""
         names = [name for name in self.vars.keys() if name in src_net.vars]
+        print('%s Copying vars from source %s:' % (self.scope, src_net.scope))
+        for name in names: print(name)
         tfutil.set_vars(tfutil.run({self.vars[name]: src_net.vars[name] for name in names}))
 
     def copy_trainables_from(self, src_net: "Network") -> None:
