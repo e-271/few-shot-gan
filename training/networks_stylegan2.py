@@ -97,8 +97,35 @@ def apply_identity(x):
 
 
 def apply_adaptive_scale(x):
-    s = tf.get_variable('adapt/mod_weight', shape=[x.shape[1].value, 1, 1], initializer=tf.initializers.ones()) # Init to 1
-    return x * s
+    g = tf.get_variable('adapt/gamma', shape=[x.shape[1].value, 1, 1], initializer=tf.initializers.ones()) # Init to 1
+    return x * g
+
+def apply_adaptive_shift(x):
+    b = tf.get_variable('adapt/beta', shape=[x.shape[1].value, 1, 1], initializer=tf.initializers.zeros()) # Init to 0
+    return x + b
+
+def apply_adaptive_scale_shift(x):
+    x = apply_adaptive_scale(x)
+    x = apply_adapative_shift(x)
+    return x
+
+def apply_adaptive_residual_scale(x):
+    x_flat = tf.reshape(x, [-1, x.shape[1].value * x.shape[2].value * x.shape[3].value])
+    g = tf.reshape(dense_layer(x_flat, fmaps=x.shape[1].value, weight_var='adapt/gamma'), [-1, x.shape[1].value, 1, 1])
+    return x * g
+
+def apply_adaptive_residual_shift(x):
+    x_flat = tf.reshape(x, [-1, x.shape[1].value * x.shape[2].value * x.shape[3].value])
+    b = tf.reshape(dense_layer(x_flat, fmaps=x.shape[1].value, weight_var='adapt/beta'), [-1, x.shape[1], 1, 1])
+    b = tf.tile(b, [1, 1, x.shape[2], x.shape[3]])
+    return x + b
+
+def apply_adaptive_residual_scale_shift(x):
+    x = apply_adaptive_residual_scale(x)
+    x = apply_adapative_residual_shift(x)
+    return x
+
+
 
 
 #----------------------------------------------------------------------------

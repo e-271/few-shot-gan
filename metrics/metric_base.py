@@ -50,6 +50,7 @@ class MetricBase:
             run_config = misc.parse_config_for_previous_run(run_dir)
             self._dataset_args = dict(run_config['dataset'])
             self._dataset_args['shuffle_mb'] = 0
+            self._dataset_args['max_images'] = None
             self._mirror_augment = run_config['train'].get('mirror_augment', False)
 
     def configure_progress_reports(self, plo, phi, pmax, psec=15):
@@ -110,6 +111,7 @@ class MetricBase:
     def _get_cache_file_for_reals(self, extension='pkl', **kwargs):
         all_args = dnnlib.EasyDict(metric_name=self.name, mirror_augment=self._mirror_augment)
         all_args.update(self._dataset_args)
+        print(self._dataset_args)
         all_args.update(kwargs)
         md5 = hashlib.md5(repr(sorted(all_args.items())).encode('utf-8'))
         dataset_name = self._dataset_args.get('tfrecord_dir', None) or self._dataset_args.get('h5_file', None)

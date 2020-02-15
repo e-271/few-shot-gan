@@ -26,7 +26,12 @@ _valid_configs = [
     'config-f', # + Large networks (default)
 
     # Adaptive
-    'config-g',
+    'config-a-g',
+    'config-a-b',
+    'config-a-gb',
+    'config-b-g',
+    'config-b-b',
+    'config-b-gb', 
 
     # Table 2
     'config-e-Gorig-Dorig',   'config-e-Gorig-Dresnet',   'config-e-Gorig-Dskip',
@@ -36,7 +41,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl):
+def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, max_images):
     train     = EasyDict(run_func_name='training.training_loop.training_loop') # Options for training loop.
     G         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
     D         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
@@ -65,6 +70,7 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, m
 
     desc += '-' + dataset
     dataset_args = EasyDict(tfrecord_dir=dataset)
+    dataset_args['max_images'] = max_images
 
     assert num_gpus in [1, 2, 4, 8]
     sc.num_gpus = num_gpus
@@ -113,12 +119,14 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, m
         D = EasyDict(func_name='training.networks_stylegan.D_basic')
 
     # Config G: Replace mapping network with adaptive scaling parameters.
-    if config_id == 'config-g':
-        G['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale'
-        G['train_scope'] = '.*/adapt'
-        D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale'
-        D['train_scope'] = '.*/adapt'
+    if config_id[:9] in ['config-a-', 'config-b-', 'config-c-']:
+        G['train_scope'] = D['train_scope'] = '.*/adapt'
         train.resume_with_new_nets = True
+        if config_id == 'config-a-g': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale'
+        if config_id == 'config-a-b': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_shift'
+        if config_id == 'config-b-g': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_scale'
+        if config_id == 'config-b-b': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
+
 
     if gamma is not None:
         D_loss.gamma = gamma
@@ -177,6 +185,7 @@ def main():
     parser.add_argument('--data-dir', help='Dataset root directory', required=True)
     parser.add_argument('--dataset', help='Training dataset', required=True)
     parser.add_argument('--config', help='Training config (default: %(default)s)', default='config-f', required=True, dest='config_id', metavar='CONFIG')
+    parser.add_argument('--max-images', help='Maximum number of images to pull from dataset.', default=None, type=int)
     parser.add_argument('--num-gpus', help='Number of GPUs (default: %(default)s)', default=1, type=int, metavar='N')
     parser.add_argument('--total-kimg', help='Training length in thousands of images (default: %(default)s)', metavar='KIMG', default=25000, type=int)
     parser.add_argument('--gamma', help='R1 regularization weight (default is config dependent)', default=None, type=float)
