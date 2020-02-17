@@ -110,7 +110,7 @@ def apply_adaptive_scale_shift(x, x_prev):
     x = apply_adapative_shift(x, x_prev)
     return x
 
-# Cannot recover identity easily from this. AP would if inputs are normallized channel-wise.
+# Cannot recover identity easily from this. AP would if inputs are normallized channel-wise (which they are kind of, but then its not really residual).
 def apply_adaptive_mp_residual_scale(x, x_prev):
     x_mp = tf.layers.max_pooling2d(x_prev, pool_size=[x_prev.shape[2].value, x_prev.shape[2].value], strides=x_prev.shape[2].value, data_format='channels_first')
     x_mp = tf.reshape(x_mp, [-1, x_prev.shape[1].value])
@@ -121,7 +121,7 @@ def apply_adaptive_mp_residual_scale(x, x_prev):
 def apply_adaptive_mp_residual_shift(x, x_prev):
     x_mp = tf.layers.max_pooling2d(x_prev, pool_size=[x_prev.shape[2].value, x_prev.shape[2].value], strides=x_prev.shape[2].value, data_format='channels_first')
     x_mp = tf.reshape(x_mp, [-1, x_prev.shape[1].value])
-    wa = tf.get_variable('adapt/bias', shape=[x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.zeros())
+    wa = tf.get_variable('adapt/beta', shape=[x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.zeros())
     b = tf.reshape(tf.matmul(x_mp, wa), [-1, x.shape[1].value, 1, 1])
     b = tf.tile(b, [1, 1, x.shape[2], x.shape[3]])
     return x + b
@@ -131,6 +131,33 @@ def apply_adaptive_mp_residual_scale_shift(x, x_prev):
     x = apply_adapative_mp_residual_shift(x, x_prev)
     return x
 
+def apply_adaptive_residual_scale(x, x_prev):
+    if x.shape[2] > x_prev.shape[2]:
+        g = tf.layers.Conv2DTranspose(x.shape[1], 1, [2,2], 'same', data_format='channels_first', use_bias=False, kernel_initializer=tf.initializers.ones())(x_prev)
+    elif x.shape[2] < x_prev.shape[2]:
+        wa = tf.get_variable('adapt/gamma', shape=[1, 1, x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.ones())
+        g = tf.nn.conv2d(x_prev, tf.cast(wa, x_prev.dtype), data_format='NCHW', strides=[1,1,2,2], padding='SAME')
+    else:
+        wa = tf.get_variable('adapt/gamma', shape=[1, 1, x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.ones())
+        g = tf.nn.conv2d(x_prev, tf.cast(wa, x_prev.dtype), data_format='NCHW', strides=[1,1,1,1], padding='SAME')
+    return x * g
+
+
+def apply_adaptive_residual_shift(x, x_prev):
+    if x.shape[2] > x_prev.shape[2]:
+        b = tf.layers.Conv2DTranspose(x.shape[1], 1, [2,2], 'same', data_format='channels_first', use_bias=False, kernel_initializer=tf.initializers.zeros())(x_prev)
+    elif x.shape[2] < x_prev.shape[2]:
+        wa = tf.get_variable('adapt/gamma', shape=[1, 1, x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.zeros())
+        b = tf.nn.conv2d(x_prev, tf.cast(wa, x_prev.dtype), data_format='NCHW', strides=[1,1,2,2], padding='SAME')
+    else:
+        wa = tf.get_variable('adapt/gamma', shape=[1, 1, x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.zeros())
+        b = tf.nn.conv2d(x_prev, tf.cast(wa, x_prev.dtype), data_format='NCHW', strides=[1,1,1,1], padding='SAME')
+    return x + b
+
+def apply_adaptive_residual_scale_shift(x, x_prev):
+    x = apply_adaptive_residual_scale(x, x_prev)
+    x = apply_adapative_residual_shift(x, x_prev)
+    return x
 
 
 
