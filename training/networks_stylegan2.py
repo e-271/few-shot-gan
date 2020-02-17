@@ -46,12 +46,13 @@ def dense_layer(x, fmaps, gain=1, use_wscale=True, lrmul=1, weight_var='weight')
     w = tf.cast(w, x.dtype)
     return tf.matmul(x, w)
 
-#----------------------------------------------------------------------------
+
 # Convolution layer with optional upsampling or downsampling.
 
 def conv2d_layer(x, fmaps, kernel, up=False, down=False, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, weight_var='weight', adapt_func='training.networks_stylegan2.apply_identity'):
     assert not (up and down)
     assert kernel >= 1 and kernel % 2 == 1
+    x_prev = x
     w = get_weight([kernel, kernel, x.shape[1].value, fmaps], gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
     if up:
         x = upsample_conv_2d(x, tf.cast(w, x.dtype), data_format='NCHW', k=resample_kernel)
@@ -59,7 +60,7 @@ def conv2d_layer(x, fmaps, kernel, up=False, down=False, resample_kernel=None, g
         x = conv_downsample_2d(x, tf.cast(w, x.dtype), data_format='NCHW', k=resample_kernel)
     else:
         x = tf.nn.conv2d(x, tf.cast(w, x.dtype), data_format='NCHW', strides=[1,1,1,1], padding='SAME')
-    x = call_func_by_name(func_name=adapt_func, x=x)
+    x = call_func_by_name(func_name=adapt_func, x=x, x_prev=x)
     return x
 
 #----------------------------------------------------------------------------
@@ -89,42 +90,45 @@ def naive_downsample_2d(x, factor=2):
 #----------------------------------------------------------------------------
 # Vanilla vs. Adaptive versions of scaling
 
-def apply_identity(x):
+def apply_identity(x, x_prev):
     return x
     #s = dense_layer(y, fmaps=x.shape[1].value, weight_var='adapt/mod_weight') # [BI] Transform incoming W to style.
     #s = apply_bias_act(s, bias_var='mod_bias') + 1 # [BI] Add bias (initially 1).
     #return ww * tf.cast(s[:, np.newaxis, np.newaxis, :, np.newaxis], ww.dtype)
 
 
-def apply_adaptive_scale(x):
+def apply_adaptive_scale(x, x_prev):
     g = tf.get_variable('adapt/gamma', shape=[x.shape[1].value, 1, 1], initializer=tf.initializers.ones()) # Init to 1
     return x * g
 
-def apply_adaptive_shift(x):
+def apply_adaptive_shift(x, x_prev):
     b = tf.get_variable('adapt/beta', shape=[x.shape[1].value, 1, 1], initializer=tf.initializers.zeros()) # Init to 0
     return x + b
 
-def apply_adaptive_scale_shift(x):
-    x = apply_adaptive_scale(x)
-    x = apply_adapative_shift(x)
+def apply_adaptive_scale_shift(x, x_prev):
+    x = apply_adaptive_scale(x, x_prev)
+    x = apply_adapative_shift(x, x_prev)
     return x
 
-def apply_adaptive_residual_scale(x):
-    x_mp = tf.reduce_max(x, reduction_indices=[2,3])
-    #x_flat = tf.reshape(x, [-1, x.shape[1].value * x.shape[2].value * x.shape[3].value])
-    g = tf.reshape(dense_layer(x_mp, fmaps=x.shape[1].value, weight_var='adapt/gamma'), [-1, x.shape[1].value, 1, 1])
+# Cannot recover identity easily from this. AP would if inputs are normallized channel-wise.
+def apply_adaptive_mp_residual_scale(x, x_prev):
+    x_mp = tf.layers.max_pooling2d(x_prev, pool_size=[x_prev.shape[2].value, x_prev.shape[2].value], strides=x_prev.shape[2].value, data_format='channels_first')
+    x_mp = tf.reshape(x_mp, [-1, x_prev.shape[1].value])
+    wa = tf.get_variable('adapt/gamma', shape=[x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.ones())
+    g = tf.reshape(tf.matmul(x_mp, wa), [-1, x.shape[1].value, 1, 1])
     return x * g
 
-def apply_adaptive_residual_shift(x):
-    x_mp = tf.reduce_max(x, reduction_indices=[2,3])
-    #x_flat = tf.reshape(x, [-1, x.shape[1].value * x.shape[2].value * x.shape[3].value])
-    b = tf.reshape(dense_layer(x_mp, fmaps=x.shape[1].value, weight_var='adapt/beta'), [-1, x.shape[1], 1, 1])
+def apply_adaptive_mp_residual_shift(x, x_prev):
+    x_mp = tf.layers.max_pooling2d(x_prev, pool_size=[x_prev.shape[2].value, x_prev.shape[2].value], strides=x_prev.shape[2].value, data_format='channels_first')
+    x_mp = tf.reshape(x_mp, [-1, x_prev.shape[1].value])
+    wa = tf.get_variable('adapt/bias', shape=[x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.zeros())
+    b = tf.reshape(tf.matmul(x_mp, wa), [-1, x.shape[1].value, 1, 1])
     b = tf.tile(b, [1, 1, x.shape[2], x.shape[3]])
     return x + b
 
-def apply_adaptive_residual_scale_shift(x):
-    x = apply_adaptive_residual_scale(x)
-    x = apply_adapative_residual_shift(x)
+def apply_adaptive_mp_residual_scale_shift(x, x_prev):
+    x = apply_adaptive_mp_residual_scale(x, x_prev)
+    x = apply_adapative_mp_residual_shift(x, x_prev)
     return x
 
 
@@ -137,6 +141,7 @@ def apply_adaptive_residual_scale_shift(x):
 def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate=True, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, fused_modconv=True, weight_var='weight', mod_weight_var='mod_weight', mod_bias_var='mod_bias', adapt_func='training.networks_stylegan2.apply_identity'):
     assert not (up and down)
     assert kernel >= 1 and kernel % 2 == 1
+    x_prev = x
 
     # Get weight.
     w = get_weight([kernel, kernel, x.shape[1].value, fmaps], gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
@@ -173,7 +178,8 @@ def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate
     elif demodulate:
         x *= tf.cast(d[:, :, np.newaxis, np.newaxis], x.dtype) # [BOhw] Not fused => scale output activations.
 
-    x = call_func_by_name(func_name=adapt_func, x=x)
+    # TODO(me): This is not residual atm!
+    x = call_func_by_name(func_name=adapt_func, x=x, x_prev=x_prev)
     return x
 
 #----------------------------------------------------------------------------
