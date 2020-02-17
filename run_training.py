@@ -35,6 +35,7 @@ _valid_configs = [
     'config-c-g',
     'config-c-b',
     'config-c-gb',
+    'config-d-gb',
 
     # Table 2
     'config-e-Gorig-Dorig',   'config-e-Gorig-Dresnet',   'config-e-Gorig-Dskip',
@@ -125,6 +126,7 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, m
     if config_id[:9] in ['config-a-', 'config-b-', 'config-c-']:
         G['train_scope'] = D['train_scope'] = '.*/adapt'
         train.resume_with_new_nets = True
+        if config_id[7]  in ['d', 'c', 'b']: sched.G_lrate_base = sched.D_lrate_base = 0.0002;
         if config_id == 'config-a-g': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale'
         if config_id == 'config-a-b': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_shift'
         if config_id == 'config-a-gb': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
@@ -134,6 +136,8 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, m
         if config_id == 'config-c-g': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_scale'
         if config_id == 'config-c-b': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
         if config_id == 'config-c-gb': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_scale_shift'
+        if config_id == 'config-d-gb': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_resshift'
+
 
 
     if gamma is not None:
