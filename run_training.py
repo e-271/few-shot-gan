@@ -124,6 +124,7 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, m
         train.resume_with_new_nets = True
         if config_id == 'config-a-g': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale'
         if config_id == 'config-a-b': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_shift'
+        if config_id == 'config-a-gb': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
         if config_id == 'config-b-g': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_scale'
         if config_id == 'config-b-b': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
 

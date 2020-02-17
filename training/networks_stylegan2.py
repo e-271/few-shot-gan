@@ -106,9 +106,10 @@ def apply_adaptive_shift(x):
 
 def apply_adaptive_scale_shift(x):
     x = apply_adaptive_scale(x)
-    x = apply_adapative_shift(x)
+    x = apply_adaptive_shift(x)
     return x
 
+# TODO(me): This is bad. Do a max pool and then a FC instead.
 def apply_adaptive_residual_scale(x):
     x_flat = tf.reshape(x, [-1, x.shape[1].value * x.shape[2].value * x.shape[3].value])
     g = tf.reshape(dense_layer(x_flat, fmaps=x.shape[1].value, weight_var='adapt/gamma'), [-1, x.shape[1].value, 1, 1])
