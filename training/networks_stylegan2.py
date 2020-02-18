@@ -107,7 +107,7 @@ def apply_adaptive_shift(x, x_prev):
 
 def apply_adaptive_scale_shift(x, x_prev):
     x = apply_adaptive_scale(x, x_prev)
-    x = apply_adapative_shift(x, x_prev)
+    x = apply_adaptive_shift(x, x_prev)
     return x
 
 # Cannot recover identity easily from this. AP would if inputs are normallized channel-wise (which they are kind of, but then its not really residual).
@@ -128,7 +128,7 @@ def apply_adaptive_mp_residual_shift(x, x_prev):
 
 def apply_adaptive_mp_residual_scale_shift(x, x_prev):
     x = apply_adaptive_mp_residual_scale(x, x_prev)
-    x = apply_adapative_mp_residual_shift(x, x_prev)
+    x = apply_adaptive_mp_residual_shift(x, x_prev)
     return x
 
 def apply_adaptive_residual_scale(x, x_prev):
@@ -160,12 +160,12 @@ def apply_adaptive_residual_shift(x, x_prev):
 
 def apply_adaptive_residual_scale_shift(x, x_prev):
     x = apply_adaptive_residual_scale(x, x_prev)
-    x = apply_adapative_residual_shift(x, x_prev)
+    x = apply_adaptive_residual_shift(x, x_prev)
     return x
 
 def apply_adaptive_scale_resshift(x, x_prev):
     x = apply_adaptive_scale(x, x_prev)
-    x = apply_adapative_residual_shift(x, x_prev)
+    x = apply_adaptive_residual_shift(x, x_prev)
     return x
 
 #----------------------------------------------------------------------------

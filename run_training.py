@@ -83,6 +83,8 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, m
     assert config_id in _valid_configs
     desc += '-' + config_id
 
+    desc += '-' + str(max_images)
+
     # Configs A-E: Shrink networks to match original StyleGAN.
     if config_id not in ['config-f', 'config-g']:
         G.fmap_base = D.fmap_base = 8 << 10
