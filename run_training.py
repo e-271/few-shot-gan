@@ -85,7 +85,7 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
 
     desc += '-%dimg' % max_images
 
-    desc += '-rho%f' % rho
+    desc += '-rho%.1E' % rho
 
 
     # Configs A-E: Shrink networks to match original StyleGAN.

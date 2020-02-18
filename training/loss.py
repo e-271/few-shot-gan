@@ -201,7 +201,7 @@ def G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_
 
 def G_logistic_ns_pathreg_adareg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, rho=0.0):
     loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
-    ada_varas = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=G.components['synthesis'].scope + '/.*/adapt')
+    ada_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=G.components['synthesis'].scope + '/.*/adapt')
     ada_reg = 0
     for var in ada_vars:
         ada_reg += rho * tf.reduce_sum(var)
