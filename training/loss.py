@@ -194,4 +194,30 @@ def G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_
 
     return loss, reg
 
+
+
+#----------------------------------------------------------------------------
+# Adaptive regularization losses
+
+def G_logistic_ns_pathreg_adareg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, rho=0.0):
+    loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
+    ada_varas = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=G.components['synthesis'].scope + '/.*/adapt')
+    ada_reg = 0
+    for var in ada_vars:
+        ada_reg += rho * tf.reduce_sum(var)
+    ada_reg = autosummary('Loss/adareg/G', ada_reg)
+    reg += ada_reg
+    return loss, reg
+
+
+def D_logistic_r1_adareg(G, D, opt, training_set, minibatch_size, reals, labels, gamma=10.0, rho=0.0):
+    loss, reg = D_logistic_r1(G, D, opt, training_set, minibatch_size, reals, labels, gamma)
+    ada_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=D.scope + '/.*/adapt')
+    ada_reg = 0
+    for var in ada_vars:
+        ada_reg += rho * tf.reduce_sum(var)
+    ada_reg = autosummary('Loss/adareg/D', ada_reg)
+    reg += ada_reg
+    return loss, reg
+
 #----------------------------------------------------------------------------

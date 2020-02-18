@@ -45,7 +45,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, max_images):
+def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, rho, mirror_augment, metrics, resume_pkl, max_images):
     train     = EasyDict(run_func_name='training.training_loop.training_loop') # Options for training loop.
     G         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
     D         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
@@ -82,6 +82,11 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, m
 
     assert config_id in _valid_configs
     desc += '-' + config_id
+
+    desc += '-%dimg' % max_images
+
+    desc += '-rho%f' % rho
+
 
     # Configs A-E: Shrink networks to match original StyleGAN.
     if config_id not in ['config-f', 'config-g']:
@@ -126,6 +131,10 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, m
     if config_id[:9] in ['config-a-', 'config-b-', 'config-c-']:
         G['train_scope'] = D['train_scope'] = '.*/adapt'
         train.resume_with_new_nets = True
+        G_loss = EasyDict(func_name='training.loss.G_logistic_ns_pathreg_adareg', rho=rho)
+        D_loss = EasyDict(func_name='training.loss.D_logistic_r1_adareg', rho=rho)
+
+        # TODO(me): Delete those that are crappy (d, b?)
         if config_id[7]  in ['d', 'c', 'b']: sched.G_lrate_base = sched.D_lrate_base = 0.0002;
         if config_id == 'config-a-g': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale'
         if config_id == 'config-a-b': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_shift'
@@ -204,6 +213,7 @@ def main():
     parser.add_argument('--mirror-augment', help='Mirror augment (default: %(default)s)', default=False, metavar='BOOL', type=_str_to_bool)
     parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid50k', type=_parse_comma_sep)
     parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')
+    parser.add_argument('--rho', help='Adaptive regularization weight', default=0, type=float)
 
     args = parser.parse_args()
 
