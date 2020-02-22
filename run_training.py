@@ -45,7 +45,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, rho, mirror_augment, metrics, resume_pkl, max_images):
+def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, rho, mirror_augment, metrics, resume_pkl, resume_kimg, max_images):
     train     = EasyDict(run_func_name='training.training_loop.training_loop') # Options for training loop.
     G         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
     D         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
@@ -61,8 +61,10 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
     train.data_dir = data_dir
     train.total_kimg = total_kimg
     train.mirror_augment = mirror_augment
-    train.image_snapshot_ticks = train.network_snapshot_ticks = 1
+    train.image_snapshot_ticks = 1
+    train.network_snapshot_ticks = 50
     train.resume_pkl = resume_pkl
+    train.resume_kimg = resume_kimg
     G.scale_func = 'training.networks_stylegan2.apply_identity'
     D.scale_func = None
     sched.G_lrate_base = sched.D_lrate_base = 0.002
@@ -85,7 +87,7 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
 
     desc += '-%dimg' % max_images
 
-    desc += '-rho%f' % rho
+    desc += ('-rho%.1E' % rho).replace('+', '')
 
 
     # Configs A-E: Shrink networks to match original StyleGAN.
@@ -214,6 +216,7 @@ def main():
     parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid50k', type=_parse_comma_sep)
     parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')
     parser.add_argument('--rho', help='Adaptive regularization weight', default=0, type=float)
+    parser.add_argument('--resume-kimg', help='kimg to resume from, affects scheduling', default=0, type=int)
 
     args = parser.parse_args()
 

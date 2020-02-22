@@ -1,8 +1,22 @@
 #!/bin/bash
 
 
-cfg=$1
-gpu1=$2
-gpu2=$3
+if [[ $(hostname) == *"ca"* ]];
+then
 
-CUDA_VISIBLE_DEVICES=$gpu1,$gpu2 nohup python run_training.py --num-gpus=2 --data-dir=./datasets --config=config-$1 --dataset=kannada --total-kimg=10000 --resume-pkl=./pickles/eng-config-f-10M.pkl > $1.out 2>&1
+for n in 1 10 #100 1000 4000
+do
+qsub sgan_ca.qsub $n v
+qsub sgan_ca.qsub $n t
+done
+
+
+else
+
+for n in 100 1000 4000
+do
+qsub sgan_nr.qsub -v "N=$n, model=r"
+qsub sgan_nr.qsub -v "N=$n, model=s"
+done
+
+fi
