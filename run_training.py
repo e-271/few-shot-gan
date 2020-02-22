@@ -45,7 +45,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, rho, mirror_augment, metrics, resume_pkl, max_images):
+def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, rho, mirror_augment, metrics, resume_pkl, max_images, lrate_base):
     train     = EasyDict(run_func_name='training.training_loop.training_loop') # Options for training loop.
     G         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
     D         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
@@ -61,11 +61,12 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
     train.data_dir = data_dir
     train.total_kimg = total_kimg
     train.mirror_augment = mirror_augment
-    train.image_snapshot_ticks = train.network_snapshot_ticks = 1
+    train.image_snapshot_ticks = 1
+    train.network_snapshot_ticks = 50
     train.resume_pkl = resume_pkl
     G.scale_func = 'training.networks_stylegan2.apply_identity'
     D.scale_func = None
-    sched.G_lrate_base = sched.D_lrate_base = 0.002
+    sched.G_lrate_base = sched.D_lrate_base = lrate_base #0.002
     sched.minibatch_size_base = 32
     sched.minibatch_gpu_base = 4
     D_loss.gamma = 10
@@ -85,7 +86,9 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
 
     desc += '-%dimg' % max_images
 
-    desc += '-rho%.1E' % rho
+    desc += ('-rho%.1E' % rho).replace('+', '')
+
+    desc += ('-lr%.1E' % lrate_base).replace('+', '')
 
 
     # Configs A-E: Shrink networks to match original StyleGAN.
@@ -135,7 +138,6 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
         D_loss = EasyDict(func_name='training.loss.D_logistic_r1_adareg', rho=rho)
 
         # TODO(me): Delete those that are crappy (d, b?)
-        if config_id[7]  in ['d', 'c', 'b']: sched.G_lrate_base = sched.D_lrate_base = 0.0002;
         if config_id == 'config-a-g': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale'
         if config_id == 'config-a-b': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_shift'
         if config_id == 'config-a-gb': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
@@ -214,6 +216,8 @@ def main():
     parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid50k', type=_parse_comma_sep)
     parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')
     parser.add_argument('--rho', help='Adaptive regularization weight', default=0, type=float)
+    parser.add_argument('--lrate_base', help='Base learning rate for G and D', default=0.002, type=float)
+
 
     args = parser.parse_args()
 
