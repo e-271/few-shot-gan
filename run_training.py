@@ -64,6 +64,7 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
     train.image_snapshot_ticks = 1
     train.network_snapshot_ticks = 50
     train.resume_pkl = resume_pkl
+    train.resume_kimg = resume_kimg
     G.scale_func = 'training.networks_stylegan2.apply_identity'
     D.scale_func = None
     sched.G_lrate_base = sched.D_lrate_base = lrate_base #0.002
@@ -217,7 +218,7 @@ def main():
     parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')
     parser.add_argument('--rho', help='Adaptive regularization weight', default=0, type=float)
     parser.add_argument('--lrate_base', help='Base learning rate for G and D', default=0.002, type=float)
-
+    parser.add_argument('--resume-kimg', help='kimg to resume from, affects scheduling', default=0, type=int)
 
     args = parser.parse_args()
 
