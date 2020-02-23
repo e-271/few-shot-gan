@@ -45,7 +45,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, rho, mirror_augment, metrics, resume_pkl, max_images, lrate_base):
+def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, rho, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base):
     train     = EasyDict(run_func_name='training.training_loop.training_loop') # Options for training loop.
     G         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
     D         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
@@ -217,7 +217,7 @@ def main():
     parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid50k', type=_parse_comma_sep)
     parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')
     parser.add_argument('--rho', help='Adaptive regularization weight', default=0, type=float)
-    parser.add_argument('--lrate_base', help='Base learning rate for G and D', default=0.002, type=float)
+    parser.add_argument('--lrate-base', help='Base learning rate for G and D', default=0.002, type=float)
     parser.add_argument('--resume-kimg', help='kimg to resume from, affects scheduling', default=0, type=int)
 
     args = parser.parse_args()
