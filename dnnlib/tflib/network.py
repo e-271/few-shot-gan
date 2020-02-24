@@ -450,7 +450,17 @@ class Network:
 
             mb_end = min(mb_begin + minibatch_size, num_items)
             mb_num = mb_end - mb_begin
-            mb_in = [src[mb_begin : mb_end] if src is not None else np.zeros([mb_num] + shape[1:]) for src, shape in zip(in_arrays, self.input_shapes)]
+            #mb_in = [src[mb_begin : mb_end] if src is not None else np.zeros([mb_num] + shape[1:]) for src, shape in zip(in_arrays, self.input_shapes)]
+            mb_in = []
+            for src, shape in zip(in_arrays, self.input_shapes):
+                if src is None:
+                    mb_in.append(np.zeros([mb_num] + shape[1:]))
+                elif src.shape[0] < minibatch_size:
+                    mb_in.append(src)
+                else:
+                    mb_in.append(src[mb_begin : mb_end])
+
+            #import pdb; pdb.set_trace()
             mb_out = tf.get_default_session().run(out_expr, dict(zip(in_expr, mb_in)))
 
             for dst, src in zip(out_arrays, mb_out):

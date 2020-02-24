@@ -161,7 +161,8 @@ def training_loop(
     G.print_layers(); D.print_layers()
     sched = training_schedule(cur_nimg=total_kimg*1000, training_set=training_set, **sched_args)
     grid_latents = np.random.randn(np.prod(grid_size), *G.input_shape[1:])
-    grid_fakes = Gs.run(grid_latents, grid_labels, is_validation=True, minibatch_size=sched.minibatch_gpu)
+    rho = np.array([1])
+    grid_fakes = Gs.run(grid_latents, grid_labels, rho, is_validation=True, minibatch_size=sched.minibatch_gpu)
     misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('fakes_init.png'), drange=drange_net, grid_size=grid_size)
 
     # Setup training inputs.
@@ -337,8 +338,21 @@ def training_loop(
 
             # Save snapshots.
             if image_snapshot_ticks is not None and (cur_tick % image_snapshot_ticks == 0 or done):
-                grid_fakes = Gs.run(grid_latents, grid_labels, is_validation=True, minibatch_size=sched.minibatch_gpu)
+                grid_fakes = Gs.run(grid_latents, grid_labels, rho, is_validation=True, minibatch_size=sched.minibatch_gpu)
                 misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('fakes%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
+                #import pdb; pdb.set_trace()
+                #terp_latents = np.concatenate([[grid_latents[i]]*grid_size[1] for i in range(0, grid_size[0]*grid_size[1], grid_size[1])])
+                #import pdb; pdb.set_trace()
+                terp_fakes = []
+                terp_rhos = np.linspace(0,1,grid_size[0])
+                for i in range(grid_size[1]):
+                    terp_latent = grid_fakes[grid_size[1]*i : grid_size[1]*i+1]
+                    for j in range(grid_size[0]):
+                        #import pdb; pdb.set_trace()
+                        terp_fake = Gs.run(terp_latent, grid_labels[0:1], terp_rhos[j:j+1], is_validation=True, minibatch_size=1)
+                        terp_fakes.append(terp_fake)
+                misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('fakes_terp%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size) 
+
             if network_snapshot_ticks is not None and (cur_tick % network_snapshot_ticks == 0 or done):
                 pkl = dnnlib.make_run_dir_path('network-snapshot-%06d.pkl' % (cur_nimg // 1000))
                 misc.save_pkl((G, D, Gs), pkl)
