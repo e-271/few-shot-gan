@@ -154,7 +154,10 @@ def training_loop(
         if resume_pkl is not '':
             print('Loading networks from "%s"...' % resume_pkl)
             rG, rD, rGs = misc.load_pkl(resume_pkl)
-            if resume_with_new_nets: G.copy_vars_from(rG); D.copy_vars_from(rD); Gs.copy_vars_from(rGs)
+            if resume_with_new_nets: 
+                G.copy_vars_from(rG); 
+                D.copy_vars_from(rD); 
+                Gs.copy_vars_from(rGs)
             else: G = rG; D = rD; Gs = rGs
 
     # Print layers and generate initial image snapshot.
