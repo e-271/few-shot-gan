@@ -145,7 +145,7 @@ def apply_adaptive_residual_scale(x, x_prev):
     return x * g
 
 
-def apply_adaptive_residual_shift(x, x_prev):
+def apply_adaptive_residual_shift(x, x_prev, rho_in=np.array([1])):
     if x.shape[2] > x_prev.shape[2]:
         return x
         #b = tf.layers.Conv2DTranspose(x.shape[1], 1, [2,2], 'same', data_format='channels_first', use_bias=False, kernel_initializer=tf.initializers.zeros())(x_prev)
@@ -155,6 +155,7 @@ def apply_adaptive_residual_shift(x, x_prev):
         #b = tf.nn.conv2d(x_prev, tf.cast(wa, x_prev.dtype), data_format='NCHW', strides=[1,1,2,2], padding='SAME')
     else:
         wa = tf.get_variable('adapt/gamma', shape=[1, 1, x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.zeros())
+        wa = wa * rho_in
         b = tf.nn.conv2d(x_prev, tf.cast(wa, x_prev.dtype), data_format='NCHW', strides=[1,1,1,1], padding='SAME')
     return x + b
 
@@ -172,7 +173,7 @@ def apply_adaptive_scale_resshift(x, x_prev):
 # Modulated convolution layer.
 
 
-def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate=True, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, fused_modconv=True, weight_var='weight', mod_weight_var='mod_weight', mod_bias_var='mod_bias', adapt_func='training.networks_stylegan2.apply_identity'):
+def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate=True, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, fused_modconv=True, weight_var='weight', mod_weight_var='mod_weight', mod_bias_var='mod_bias', adapt_func='training.networks_stylegan2.apply_identity', rho_in=1):
     assert not (up and down)
     assert kernel >= 1 and kernel % 2 == 1
     x_prev = x
@@ -212,8 +213,7 @@ def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate
     elif demodulate:
         x *= tf.cast(d[:, :, np.newaxis, np.newaxis], x.dtype) # [BOhw] Not fused => scale output activations.
 
-    # TODO(me): This is not residual atm!
-    x = call_func_by_name(func_name=adapt_func, x=x, x_prev=x_prev)
+    x = call_func_by_name(func_name=adapt_func, x=x, x_prev=x_prev, rho_in=rho_in)
     return x
 
 #----------------------------------------------------------------------------
@@ -241,6 +241,7 @@ def minibatch_stddev_layer(x, group_size=4, num_new_features=1):
 def G_main(
     latents_in,                                         # First input: Latent vectors (Z) [minibatch, latent_size].
     labels_in,                                          # Second input: Conditioning labels [minibatch, label_size].
+    rho_in,
     truncation_psi          = 0.5,                      # Style strength multiplier for the truncation trick. None = disable.
     truncation_cutoff       = None,                     # Number of layers for which to apply the truncation trick. None = disable.
     truncation_psi_val      = None,                     # Value for truncation_psi to use during validation.
@@ -325,7 +326,7 @@ def G_main(
     if 'lod' in components.synthesis.vars:
         deps.append(tf.assign(components.synthesis.vars['lod'], lod_in))
     with tf.control_dependencies(deps):
-        images_out = components.synthesis.get_output_for(dlatents, is_training=is_training, force_clean_graph=is_template_graph, **kwargs)
+        images_out = components.synthesis.get_output_for(dlatents, rho_in, is_training=is_training, force_clean_graph=is_template_graph, **kwargs)
 
     # Return requested outputs.
     images_out = tf.identity(images_out, name='images_out')
@@ -508,6 +509,7 @@ def G_synthesis_stylegan_revised(
 
 def G_synthesis_stylegan2(
     dlatents_in,                        # Input: Disentangled latents (W) [minibatch, num_layers, dlatent_size].
+    rho_in,
     dlatent_size        = 512,          # Disentangled latent (W) dimensionality.
     num_channels        = 3,            # Number of output color channels.
     resolution          = 1024,         # Output resolution.
@@ -533,6 +535,8 @@ def G_synthesis_stylegan2(
     images_out = None
 
     # Primary inputs.
+    rho_in.set_shape([1])
+    rho_in = tf.cast(rho_in, dtype)
     dlatents_in.set_shape([None, num_layers, dlatent_size])
     dlatents_in = tf.cast(dlatents_in, dtype)
 
@@ -545,7 +549,7 @@ def G_synthesis_stylegan2(
 
     # Single convolution layer with all the bells and whistles.
     def layer(x, layer_idx, fmaps, kernel, up=False):
-        x = modulated_conv2d_layer(x, dlatents_in[:, layer_idx], fmaps=fmaps, kernel=kernel, up=up, resample_kernel=resample_kernel, fused_modconv=fused_modconv, adapt_func=adapt_func)
+        x = modulated_conv2d_layer(x, dlatents_in[:, layer_idx], fmaps=fmaps, kernel=kernel, up=up, resample_kernel=resample_kernel, fused_modconv=fused_modconv, adapt_func=adapt_func, rho_in=rho_in)
         if randomize_noise:
             noise = tf.random_normal([tf.shape(x)[0], 1, x.shape[2], x.shape[3]], dtype=x.dtype)
         else:
@@ -571,7 +575,7 @@ def G_synthesis_stylegan2(
             return upsample_2d(y, k=resample_kernel)
     def torgb(x, y, res): # res = 2..resolution_log2
         with tf.variable_scope('ToRGB'):
-            t = apply_bias_act(modulated_conv2d_layer(x, dlatents_in[:, res*2-3], fmaps=num_channels, kernel=1, demodulate=False, fused_modconv=fused_modconv, adapt_func=adapt_func))
+            t = apply_bias_act(modulated_conv2d_layer(x, dlatents_in[:, res*2-3], fmaps=num_channels, kernel=1, demodulate=False, fused_modconv=fused_modconv, adapt_func=adapt_func, rho_in=rho_in))
             return t if y is None else y + t
 
     # Early layers.
