@@ -145,7 +145,7 @@ def apply_adaptive_residual_scale(x, x_prev):
     return x * g
 
 
-def apply_adaptive_residual_shift(x, x_prev, rho_in=tf.ones([1])):
+def apply_adaptive_residual_shift(x, x_prev, rho_in=np.array([1])):
     if x.shape[2] > x_prev.shape[2]:
         return x
         #b = tf.layers.Conv2DTranspose(x.shape[1], 1, [2,2], 'same', data_format='channels_first', use_bias=False, kernel_initializer=tf.initializers.zeros())(x_prev)

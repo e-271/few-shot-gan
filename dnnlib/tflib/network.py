@@ -455,7 +455,7 @@ class Network:
             for src, shape in zip(in_arrays, self.input_shapes):
                 if src is None:
                     mb_in.append(np.zeros([mb_num] + shape[1:]))
-                elif src.shape[0] < minibatch_size:
+                elif src.shape[0] <= minibatch_size:
                     mb_in.append(src)
                 else:
                     mb_in.append(src[mb_begin : mb_end])
