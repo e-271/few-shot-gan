@@ -1,8 +1,9 @@
 #!/bin/bash
 
 
-if [[ $(hostname) == *"ca"* ]];
+if [[ $(hostname) == "ca"* ]];
 then
+echo $(hostname)
 
 lr=0.0002
 a=0
@@ -26,7 +27,8 @@ qsub sgan_ca.qsub 10 t $a $lr $tx
 #done
 
 
-else
+elif [[ $(hostname) == "nr"* ]];
+then
 lr=0.0002
 a=0
 tx="kannada4K"
@@ -55,5 +57,17 @@ qsub sgan_nr.qsub -v "N=100, model=r, rho=$a, lrate=$lr, tx=$tx"
 #done
 #done
 #done
+
+
+# Run on some local machine
+else
+lr=0.0002
+rho=0
+tx="kannada4K"
+
+CUDA_VISIBLE_DEVICES=8,9 nohup ./launch_training.sh 10 t $rho $lr $tx > ${tx}_t_10.out 2>&1 &
+CUDA_VISIBLE_DEVICES=6,7 nohup ./launch_training.sh 10 r $rho $lr $tx > ${tx}_r_10.out 2>&1 &
+#nohup ./launch_training.sh 50 t $rho $lr $tx > ${tx}_t_50.out 2>&1 &
+#nohup ./launch_training.sh 100 r $rho $lr $tx > ${tx}_r_100.out 2>&1 &
 
 fi

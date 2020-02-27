@@ -7,8 +7,10 @@ N=$1
 model=$2 # r, t, s, a
 reg=$3
 lr=$4
-kimg=10000
 tx=$5
+kimg=10000
+ddir='/work/erobb/datasets/'
+rdir='/work/erobb/results/'
 
 echo $1 $2 $3 $4 $5
 
@@ -51,16 +53,16 @@ rri=6028
 
 fi
 
-elif [[ $tx == "danbooru" ]]
+elif [[ $tx == "danbooru" ]] || [[ $tx == "celeba" ]] || [[ $tx == "bedrooms" ]]
 then
 
 rv=''
 rvi=0
-rt='./pickles/imagenet_5M.pkl'
+rt='./pickles/imagenet_10M.pkl'
 rti=0
-rs='./pickles/imagenet_5M.pkl'
+rs='./pickles/imagenet_10M.pkl'
 rsi=0
-rr='./pickles/imagenet_5M.pkl'
+rr='./pickles/imagenet_10M.pkl'
 rri=0
 
 fi
@@ -68,26 +70,26 @@ fi
 # Vanilla GAN baseline
 if [[ $model == "v" ]]
 then
-python run_training.py --num-gpus=2 --data-dir=./datasets --config=config-f --dataset=$tx --total-kimg=$kimg --max-images=$N --resume-pkl=$rv --resume-kimg=$rvi --lrate-base=$lr --result-dir=./results/$tx
+python run_training.py --num-gpus=2 --data-dir=$ddir --config=config-f --dataset=$tx --total-kimg=$kimg --max-images=$N --resume-pkl=$rv --resume-kimg=$rvi --lrate-base=$lr --result-dir=$rdir/$tx
 echo "vvv"
 
 # TGAN baseline
 elif [[ $model == "t" ]]
 then
 echo $rt $rti
-python run_training.py --num-gpus=2 --data-dir=./datasets --config=config-f --dataset=$tx --total-kimg=$kimg --max-images=$N --resume-pkl=$rt --resume-kimg=$rti --lrate-base=$lr --result-dir=./results/$tx
+python run_training.py --num-gpus=2 --data-dir=$ddir --config=config-f --dataset=$tx --total-kimg=$kimg --max-images=$N --resume-pkl=$rt --resume-kimg=$rti --lrate-base=$lr --result-dir=$rdir/$tx
 echo "ttt"
 
 # Shift+scale baseline
 elif [[ $model == "s" ]]
 then
-python run_training.py --num-gpus=2 --data-dir=./datasets --config=config-a-gb --dataset=$tx --total-kimg=$kimg --max-images=$N --resume-pkl=$rs --resume-kimg=$rsi --rho=$reg --lrate-base=$lr --result-dir=./results/$tx
+python run_training.py --num-gpus=2 --data-dir=$ddir --config=config-a-gb --dataset=$tx --total-kimg=$kimg --max-images=$N --resume-pkl=$rs --resume-kimg=$rsi --rho=$reg --lrate-base=$lr --result-dir=$rdir/$tx
 echo "sss"
 
 # Residual adapters (ours#)
 elif [[ $model == "r" ]]
 then
-python run_training.py --num-gpus=2 --data-dir=./datasets --config=config-c-b --dataset=$tx --total-kimg=$kimg --max-images=$N --resume-pkl=$rr --resume-kimg=$rri --rho=$reg --lrate-base=$lr --result-dir=./results/$tx
+python run_training.py --num-gpus=2 --data-dir=$ddir --config=config-c-b --dataset=$tx --total-kimg=$kimg --max-images=$N --resume-pkl=$rr --resume-kimg=$rri --rho=$reg --lrate-base=$lr --result-dir=$rdir/$tx
 echo "rrr"
 fi
 
