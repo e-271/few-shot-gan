@@ -363,7 +363,6 @@ def training_loop(
                         terp_start, terp_stop = grid_latents[grid_size[0]*i], grid_latents[(grid_size[0]*(i+1)) % (grid_size[0]*grid_size[1])]
                         terp_latent = np.linspace(terp_start, terp_stop, grid_size[0])
                         terp_latents.append(terp_latent)
-                    import pdb; pdb.set_trace()
                     terp_latents = np.concatenate(terp_latents, 0)
                     terp_fakes = Gs.run(terp_latents, grid_labels[0:1], np.array([plot_latent_terp_rho]), is_validation=True, minibatch_size=1)
                     misc.save_image_grid(terp_fakes, dnnlib.make_run_dir_path('fakes_latent_terp_%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
