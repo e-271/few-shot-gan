@@ -45,7 +45,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, rho, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base):
+def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, rho, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks):
     train     = EasyDict(run_func_name='training.training_loop.training_loop') # Options for training loop.
     G         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
     D         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
@@ -61,7 +61,7 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
     train.data_dir = data_dir
     train.total_kimg = total_kimg
     train.mirror_augment = mirror_augment
-    train.image_snapshot_ticks = 10
+    train.image_snapshot_ticks = img_ticks
     train.network_snapshot_ticks = 50
     train.resume_pkl = resume_pkl
     train.resume_kimg = resume_kimg
@@ -91,6 +91,7 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
 
     desc += ('-lr%.1E' % lrate_base).replace('+', '')
 
+    if mirror_augment: desc += '-aug'
 
     # Configs A-E: Shrink networks to match original StyleGAN.
     if config_id in ['config-a', 'config-b', 'config-c', 'config-d', 'config-e']:
@@ -219,6 +220,7 @@ def main():
     parser.add_argument('--rho', help='Adaptive regularization weight', default=0, type=float)
     parser.add_argument('--lrate-base', help='Base learning rate for G and D', default=0.002, type=float)
     parser.add_argument('--resume-kimg', help='kimg to resume from, affects scheduling', default=0, type=int)
+    parser.add_argument('--img-ticks', help='How often to save images', default=10, type=int)
 
     args = parser.parse_args()
 
