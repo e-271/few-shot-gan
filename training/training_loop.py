@@ -129,6 +129,9 @@ def training_loop(
     network_snapshot_ticks  = 50,       # How often to save network snapshots? None = only save 'networks-final.pkl'.
     save_tf_graph           = True,    # Include full TensorFlow computation graph in the tfevents file?
     save_weight_histograms  = True,    # Include weight histograms in the tfevents file?
+    plot_rho_terp           = True,     # Save plot interpolating rho
+    plot_latent_terp        = True,     # Save plot interpolating through latent space
+    plot_latent_terp_rho    = 1.0,      # Fixed rho for latent interpolation plot
     resume_pkl              = None,     # Network pickle to resume training from, None = train from scratch.
     resume_kimg             = 0.0,      # Assumed training progress at the beginning. Affects reporting and training schedule.
     resume_time             = 0.0,      # Assumed wallclock time at the beginning. Affects reporting.
@@ -344,15 +347,28 @@ def training_loop(
                 grid_fakes = Gs.run(grid_latents, grid_labels, rho, is_validation=True, minibatch_size=sched.minibatch_gpu)
                 misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('fakes%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
                 #terp_latents = np.concatenate([[grid_latents[i]]*grid_size[1] for i in range(0, grid_size[0]*grid_size[1], grid_size[1])])
-                terp_fakes = []
-                terp_rhos = np.linspace(0,1,grid_size[0])
-                for i in range(grid_size[1]):
-                    terp_latent = grid_latents[grid_size[1]*i : grid_size[1]*i+1]
-                    for j in range(grid_size[0]):
-                        terp_fake = Gs.run(terp_latent, grid_labels[0:1], terp_rhos[j:j+1], is_validation=True, minibatch_size=1)
-                        terp_fakes.append(terp_fake)
-                terp_fakes = np.concatenate(terp_fakes)
-                misc.save_image_grid(terp_fakes, dnnlib.make_run_dir_path('fakes_terp%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size) 
+                if plot_rho_terp:
+                    terp_fakes = []
+                    terp_rhos = np.linspace(0,1,grid_size[0])
+                    for i in range(grid_size[1]): # row
+                        terp_latent = grid_latents[grid_size[0]*i : grid_size[0]*i+1]
+                        for j in range(grid_size[0]): # col
+                            terp_fake = Gs.run(terp_latent, grid_labels[0:1], terp_rhos[j:j+1], is_validation=True, minibatch_size=1)
+                            terp_fakes.append(terp_fake)
+                    terp_fakes = np.concatenate(terp_fakes)
+                    misc.save_image_grid(terp_fakes, dnnlib.make_run_dir_path('fakes_rho_terp_%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size) 
+                if plot_latent_terp:
+                    terp_fakes = []
+                    for i in range(grid_size[1]): # row
+                        terp_start, terp_stop = grid_latents[grid_size[0]*i], grid_latents[(grid_size[0]*(i+1)) % (grid_size[0]*grid_size[1])]
+                        terp_latents = np.linspace(terp_start, terp_stop, grid_size[0])
+                        for j in range(grid_size[0]): # col
+                            terp_fake = Gs.run(np.expand_dims(terp_latents[j], 0), grid_labels[0:1], np.array([plot_latent_terp_rho]), is_validation=True, minibatch_size=1)
+                            terp_fakes.append(terp_fake)
+                    terp_fakes = np.concatenate(terp_fakes)
+                    misc.save_image_grid(terp_fakes, dnnlib.make_run_dir_path('fakes_latent_terp_%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
+
+
 
             if network_snapshot_ticks is not None and (cur_tick % network_snapshot_ticks == 0 or done):
                 pkl = dnnlib.make_run_dir_path('network-snapshot-%06d.pkl' % (cur_nimg // 1000))
