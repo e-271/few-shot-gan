@@ -14,17 +14,24 @@ import dnnlib.tflib as tflib
 import pretrained_networks
 from metrics import metric_base
 from metrics.metric_defaults import metric_defaults
+import numpy as np
 
 #----------------------------------------------------------------------------
 
-def run(network_pkl, metrics, dataset, data_dir, mirror_augment):
+def run(network_pkl, metrics, dataset, data_dir, mirror_augment, rho_steps):
     print('Evaluating metrics "%s" for "%s"...' % (','.join(metrics), network_pkl))
     tflib.init_tf()
     network_pkl = pretrained_networks.get_path_or_url(network_pkl)
     dataset_args = dnnlib.EasyDict(tfrecord_dir=dataset, shuffle_mb=0)
     num_gpus = dnnlib.submit_config.num_gpus
     metric_group = metric_base.MetricGroup([metric_defaults[metric] for metric in metrics])
-    metric_group.run(network_pkl, data_dir=data_dir, dataset_args=dataset_args, mirror_augment=mirror_augment, num_gpus=num_gpus)
+    if rho_steps > 1:
+        rho_sweep = np.linspace(0, 1, rho_steps)
+    else:
+        rho_sweep = [1]
+    for rho in rho_sweep:
+        print(rho)
+        metric_group.run(network_pkl, data_dir=data_dir, dataset_args=dataset_args, mirror_augment=mirror_augment, num_gpus=num_gpus, rho=rho)
 
 #----------------------------------------------------------------------------
 
@@ -62,6 +69,7 @@ def main():
     parser.add_argument('--data-dir', help='Dataset root directory', required=True)
     parser.add_argument('--mirror-augment', help='Mirror augment (default: %(default)s)', default=False, type=_str_to_bool, metavar='BOOL')
     parser.add_argument('--num-gpus', help='Number of GPUs to use', type=int, default=1, metavar='N')
+    parser.add_argument('--rho-steps', help='Number of rho steps to sweep thu (1 step -> rho=1)', default=1, type=int)
 
     args = parser.parse_args()
 

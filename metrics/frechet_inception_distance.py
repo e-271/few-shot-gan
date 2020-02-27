@@ -23,7 +23,7 @@ class FID(metric_base.MetricBase):
         self.num_images = num_images
         self.minibatch_per_gpu = minibatch_per_gpu
 
-    def _evaluate(self, Gs, Gs_kwargs, num_gpus):
+    def _evaluate(self, Gs, Gs_kwargs, num_gpus, rho):
         minibatch_size = num_gpus * self.minibatch_per_gpu
         #inception = misc.load_pkl('http://d36zk2xti64re0.cloudfront.net/stylegan1/networks/metrics/inception_v3_features.pkl')
         inception = misc.load_pkl('/home/erobb/stylegan2/pickles/inception_v3_features.pkl')
@@ -53,8 +53,7 @@ class FID(metric_base.MetricBase):
                 inception_clone = inception.clone()
                 latents = tf.random_normal([self.minibatch_per_gpu] + Gs_clone.input_shape[1:])
                 labels = self._get_random_labels_tf(self.minibatch_per_gpu)
-                rho = np.array([1])
-                images = Gs_clone.get_output_for(latents, labels, rho, **Gs_kwargs)
+                images = Gs_clone.get_output_for(latents, labels, np.array([rho]), **Gs_kwargs)
                 images = tflib.convert_images_to_uint8(images)
                 result_expr.append(inception_clone.get_output_for(images))
 

@@ -207,7 +207,9 @@ class Network:
 
     def get_output_for(self, *in_expr: TfExpression, return_as_list: bool = False, **dynamic_kwargs) -> Union[TfExpression, List[TfExpression]]:
         """Construct TensorFlow expression(s) for the output(s) of this network, given the input expression(s)."""
-        assert len(in_expr) == self.num_inputs
+        #assert len(in_expr) == self.num_inputs
+        if len(in_expr) != self.num_inputs:
+            in_expr = in_expr[:self.num_inputs]
         assert not all(expr is None for expr in in_expr)
 
         # Finalize build func kwargs.
@@ -388,7 +390,9 @@ class Network:
             assume_frozen:      Improve multi-GPU performance by assuming that the trainable parameters will remain changed between calls.
             dynamic_kwargs:     Additional keyword arguments to be passed into the network build function.
         """
-        assert len(in_arrays) == self.num_inputs
+        #assert len(in_arrays) == self.num_inputs
+        if len(in_arrays) != self.num_inputs: 
+            in_arrays = in_arrays[:self.num_inputs];
         assert not all(arr is None for arr in in_arrays)
         assert input_transform is None or util.is_top_level_function(input_transform["func"])
         assert output_transform is None or util.is_top_level_function(output_transform["func"])

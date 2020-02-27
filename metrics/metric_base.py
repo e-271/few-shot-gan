@@ -59,15 +59,15 @@ class MetricBase:
         self._progress_max = pmax
         self._progress_sec = psec
 
-    def run(self, network_pkl, run_dir=None, data_dir=None, dataset_args=None, mirror_augment=None, num_gpus=1, tf_config=None, log_results=True, Gs_kwargs=dict(is_validation=True)):
+    def run(self, network_pkl, run_dir=None, data_dir=None, dataset_args=None, mirror_augment=None, num_gpus=1, tf_config=None, log_results=True, Gs_kwargs=dict(is_validation=True), rho=1):
         self._reset(network_pkl=network_pkl, run_dir=run_dir, data_dir=data_dir, dataset_args=dataset_args, mirror_augment=mirror_augment)
         time_begin = time.time()
         with tf.Graph().as_default(), tflib.create_session(tf_config).as_default(): # pylint: disable=not-context-manager
             self._report_progress(0, 1)
             _G, _D, Gs = misc.load_pkl(self._network_pkl)
-            self._evaluate(Gs, Gs_kwargs=Gs_kwargs, num_gpus=num_gpus)
+            self._evaluate(Gs, Gs_kwargs=Gs_kwargs, num_gpus=num_gpus, rho=rho)
             self._report_progress(1, 1)
-        self._eval_time = time.time() - time_begin # pylint: disable=attribute-defined-outside-init
+            self._eval_time = time.time() - time_begin # pylint: disable=attribute-defined-outside-init
 
         if log_results:
             if run_dir is not None:
