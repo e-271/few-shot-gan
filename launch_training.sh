@@ -9,8 +9,20 @@ reg=$3
 lr=$4
 tx=$5
 kimg=10000
+
+if [[ $(hostname) == "jb"* ]]; # RTX
+then
+
 ddir='/work/erobb/datasets/'
 rdir='/work/erobb/results/'
+
+else
+
+ddir='./datasets'
+rdir='./results'
+
+fi
+
 
 echo $1 $2 $3 $4 $5
 
@@ -21,51 +33,39 @@ source activate py3tf115
 
 if [[ $tx == "kannada4K" ]]
 then
+pt='./pickles/eng-config-f-10M.pkl'
 
-rv=''
-rvi=0
-rt='./pickles/eng-config-f-10M.pkl'
-rti=0
-rs='./pickles/eng-config-f-10M.pkl'
-rsi=0
-rr='./pickles/eng-config-f-10M.pkl'
-rri=0
-
-# Resume from pretrained checkpoint
-if [[ $N == 10 ]];
+elif [[ $tx == "towers" ]]
 then
-rt='results/00046-stylegan2-kannada4K-2gpu-config-f-10img-rho0.0E00/network-snapshot-003014.pkl'
-rti=3014
-rr='results/00061-stylegan2-kannada4K-2gpu-config-c-b-10img-rho0.0E00-lr2.0E-04/network-snapshot-004019.pkl'
-rri=4019
+pt='./pickles/church-config-f.pkl'
 
-elif [[ $N == 50 ]];
+elif [[ $tx == "buses" ]]
 then
-rr='results/00064-stylegan2-kannada4K-2gpu-config-c-b-50img-rho0.0E00-lr2.0E-04/network-snapshot-004019.pkl'
-rri=4019
-rt='results/00068-stylegan2-kannada4K-2gpu-config-f-50img-rho0.0E00-lr2.0E-04/network-snapshot-004019.pkl'
-rti=4019
+pt='./pickles/car-config-f.pkl'
 
-elif [[ $N == 100 ]];
+
+elif [[ $tx == "dogs" ]] | [[ $tx == "celeba" ]]
 then
-rr='results/00062-stylegan2-kannada4K-2gpu-config-c-b-100img-rho0.0E00-lr2.0E-04/network-snapshot-006028.pkl'
-rri=6028
+pt='./pickles/cat-config-f.pkl'
+
+
+elif [[ $tx == "danbooru1024" ]]
+then
+pt='./pickles/ffhq-config-f.pkl'
 
 fi
 
-elif [[ $tx == "danbooru" ]] || [[ $tx == "celeba" ]] || [[ $tx == "bedrooms" ]]
-then
+
+
 
 rv=''
 rvi=0
-rt='./pickles/imagenet_10M.pkl'
+rt=$pt
 rti=0
-rs='./pickles/imagenet_10M.pkl'
+rs=$pt
 rsi=0
-rr='./pickles/imagenet_10M.pkl'
+rr=$pt
 rri=0
-
-fi
 
 # Vanilla GAN baseline
 if [[ $model == "v" ]]

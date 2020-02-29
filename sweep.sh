@@ -63,7 +63,7 @@ qsub sgan_nr.qsub -v "N=100, model=r, rho=$a, lrate=$lr, tx=$tx"
 else
 lr=0.0002
 rho=0
-tx="kannada4K"
+tx="celeba"
 
 CUDA_VISIBLE_DEVICES=8,9 nohup ./launch_training.sh 10 t $rho $lr $tx > ${tx}_t_10.out 2>&1 &
 CUDA_VISIBLE_DEVICES=6,7 nohup ./launch_training.sh 10 r $rho $lr $tx > ${tx}_r_10.out 2>&1 &
