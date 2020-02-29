@@ -45,7 +45,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, rho, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks):
+def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, rho, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks):
     train     = EasyDict(run_func_name='training.training_loop.training_loop') # Options for training loop.
     G         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
     D         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
@@ -62,14 +62,14 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
     train.total_kimg = total_kimg
     train.mirror_augment = mirror_augment
     train.image_snapshot_ticks = img_ticks
-    train.network_snapshot_ticks = 50
+    train.network_snapshot_ticks = net_ticks
     train.resume_pkl = resume_pkl
     train.resume_kimg = resume_kimg
     G.scale_func = 'training.networks_stylegan2.apply_identity'
     D.scale_func = None
     sched.G_lrate_base = sched.D_lrate_base = lrate_base #0.002
     sched.minibatch_size_base = 32
-    sched.minibatch_gpu_base = 4
+    sched.minibatch_gpu_base = 2 # 4
     D_loss.gamma = 10
     metrics = [metric_defaults[x] for x in metrics]
     desc = 'stylegan2'
@@ -138,6 +138,9 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
         train.resume_with_new_nets = True
         G_loss = EasyDict(func_name='training.loss.G_logistic_ns_pathreg_adareg', rho=rho)
         D_loss = EasyDict(func_name='training.loss.D_logistic_r1_adareg', rho=rho)
+        sched.tick_kimg_base = 1
+        sched.tick_kimg_dict = {} #{8:28, 16:24, 32:20, 64:16, 128:12, 256:8, 512:6, 1024:4}): # Resolution-specific overrides.
+
 
         # TODO(me): Delete those that are crappy (d, b?)
         if config_id == 'config-a-g': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale'
@@ -221,6 +224,7 @@ def main():
     parser.add_argument('--lrate-base', help='Base learning rate for G and D', default=0.002, type=float)
     parser.add_argument('--resume-kimg', help='kimg to resume from, affects scheduling', default=0, type=int)
     parser.add_argument('--img-ticks', help='How often to save images', default=10, type=int)
+    parser.add_argument('--net-ticks', help='How often to save network snapshots', default=50, type=int)
 
     args = parser.parse_args()
 

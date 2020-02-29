@@ -111,7 +111,6 @@ class MetricBase:
     def _get_cache_file_for_reals(self, extension='pkl', **kwargs):
         all_args = dnnlib.EasyDict(metric_name=self.name, mirror_augment=self._mirror_augment)
         all_args.update(self._dataset_args)
-        print(self._dataset_args)
         all_args.update(kwargs)
         md5 = hashlib.md5(repr(sorted(all_args.items())).encode('utf-8'))
         dataset_name = self._dataset_args.get('tfrecord_dir', None) or self._dataset_args.get('h5_file', None)
