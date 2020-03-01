@@ -31,25 +31,25 @@ echo $CUDA_VISIBLE_DEVICES
 source activate py3tf115
 
 
-if [[ $tx == "kannada4K" ]]
+if [[ $tx == "kannada"* ]]
 then
 pt='./pickles/eng-config-f-10M.pkl'
 
-elif [[ $tx == "towers" ]]
+elif [[ $tx == "tower"* ]]
 then
 pt='./pickles/church-config-f.pkl'
 
-elif [[ $tx == "buses" ]]
+elif [[ $tx == "bus"* ]]
 then
 pt='./pickles/car-config-f.pkl'
 
 
-elif [[ $tx == "dogs" ]] | [[ $tx == "celeba" ]]
+elif [[ $tx == "dog"* ]]
 then
 pt='./pickles/cat-config-f.pkl'
 
 
-elif [[ $tx == "danbooru1024" ]]
+elif [[ $tx == "danbooru"* ]] | [[ $tx == "anime"* ]]
 then
 pt='./pickles/ffhq-config-f.pkl'
 
