@@ -60,10 +60,8 @@ fi
 
 rv=''
 rvi=0
-#rt=$pt
-#rti=0
-rt='/work/erobb/results/kannada4K/00025-stylegan2-kannada4K-2gpu-config-f-10img-rho0.0E00-lr2.0E-04/network-snapshot-007033.pkl'
-rti=7033
+rt=$pt
+rti=0
 rs=$pt
 rsi=0
 rr=$pt

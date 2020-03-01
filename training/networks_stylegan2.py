@@ -90,7 +90,7 @@ def naive_downsample_2d(x, factor=2):
 #----------------------------------------------------------------------------
 # Vanilla vs. Adaptive versions of scaling
 
-def apply_identity(x, x_prev):
+def apply_identity(x, x_prev, rho_in=None):
     return x
     #s = dense_layer(y, fmaps=x.shape[1].value, weight_var='adapt/mod_weight') # [BI] Transform incoming W to style.
     #s = apply_bias_act(s, bias_var='mod_bias') + 1 # [BI] Add bias (initially 1).
