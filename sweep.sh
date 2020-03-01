@@ -63,10 +63,13 @@ qsub sgan_nr.qsub -v "N=100, model=r, rho=$a, lrate=$lr, tx=$tx"
 else
 lr=0.0002
 rho=0
-tx="celeba"
+tx="tower25"
+kimg=100
 
-CUDA_VISIBLE_DEVICES=8,9 nohup ./launch_training.sh 10 t $rho $lr $tx > ${tx}_t_10.out 2>&1 &
-CUDA_VISIBLE_DEVICES=6,7 nohup ./launch_training.sh 10 r $rho $lr $tx > ${tx}_r_10.out 2>&1 &
+CUDA_VISIBLE_DEVICES=2,4 nohup ./launch_training.sh 25 t $rho $lr $tx $kimg > ${tx}_t_25.out 2>&1 &
+CUDA_VISIBLE_DEVICES=6,7 nohup ./launch_training.sh 25 r $rho $lr $tx $kimg > ${tx}_r_25.out 2>&1 &
+#tx='kannada4K'
+#CUDA_VISIBLE_DEVICES=8,9 nohup ./launch_training.sh 10 t $rho $lr $tx 10000 > ${tx}_t_10.out 2>&1 &
 #nohup ./launch_training.sh 50 t $rho $lr $tx > ${tx}_t_50.out 2>&1 &
 #nohup ./launch_training.sh 100 r $rho $lr $tx > ${tx}_r_100.out 2>&1 &
 

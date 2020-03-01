@@ -8,7 +8,7 @@ model=$2 # r, t, s, a
 reg=$3
 lr=$4
 tx=$5
-kimg=10000
+kimg=$6
 
 if [[ $(hostname) == "jb"* ]]; # RTX
 then
@@ -60,8 +60,10 @@ fi
 
 rv=''
 rvi=0
-rt=$pt
-rti=0
+#rt=$pt
+#rti=0
+rt='/work/erobb/results/kannada4K/00025-stylegan2-kannada4K-2gpu-config-f-10img-rho0.0E00-lr2.0E-04/network-snapshot-007033.pkl'
+rti=7033
 rs=$pt
 rsi=0
 rr=$pt
