@@ -97,28 +97,28 @@ def apply_identity(x, x_prev):
     #return ww * tf.cast(s[:, np.newaxis, np.newaxis, :, np.newaxis], ww.dtype)
 
 
-def apply_adaptive_scale(x, x_prev):
+def apply_adaptive_scale(x, x_prev, rho_in=None):
     g = tf.get_variable('adapt/gamma', shape=[x.shape[1].value, 1, 1], initializer=tf.initializers.ones()) # Init to 1
     return x * g
 
-def apply_adaptive_shift(x, x_prev):
+def apply_adaptive_shift(x, x_prev, rho_in=None):
     b = tf.get_variable('adapt/beta', shape=[x.shape[1].value, 1, 1], initializer=tf.initializers.zeros()) # Init to 0
     return x + b
 
-def apply_adaptive_scale_shift(x, x_prev):
+def apply_adaptive_scale_shift(x, x_prev, rho_in=None):
     x = apply_adaptive_scale(x, x_prev)
     x = apply_adaptive_shift(x, x_prev)
     return x
 
 # Cannot recover identity easily from this. AP would if inputs are normallized channel-wise (which they are kind of, but then its not really residual).
-def apply_adaptive_mp_residual_scale(x, x_prev):
+def apply_adaptive_mp_residual_scale(x, x_prev, rho_in=None):
     x_mp = tf.layers.max_pooling2d(x_prev, pool_size=[x_prev.shape[2].value, x_prev.shape[2].value], strides=x_prev.shape[2].value, data_format='channels_first')
     x_mp = tf.reshape(x_mp, [-1, x_prev.shape[1].value])
     wa = tf.get_variable('adapt/gamma', shape=[x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.ones())
     g = tf.reshape(tf.matmul(x_mp, wa), [-1, x.shape[1].value, 1, 1])
     return x * g
 
-def apply_adaptive_mp_residual_shift(x, x_prev):
+def apply_adaptive_mp_residual_shift(x, x_prev, rho_in=None):
     x_mp = tf.layers.max_pooling2d(x_prev, pool_size=[x_prev.shape[2].value, x_prev.shape[2].value], strides=x_prev.shape[2].value, data_format='channels_first')
     x_mp = tf.reshape(x_mp, [-1, x_prev.shape[1].value])
     wa = tf.get_variable('adapt/beta', shape=[x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.zeros())
@@ -126,7 +126,7 @@ def apply_adaptive_mp_residual_shift(x, x_prev):
     b = tf.tile(b, [1, 1, x.shape[2], x.shape[3]])
     return x + b
 
-def apply_adaptive_mp_residual_scale_shift(x, x_prev):
+def apply_adaptive_mp_residual_scale_shift(x, x_prev, rho_in=None):
     x = apply_adaptive_mp_residual_scale(x, x_prev)
     x = apply_adaptive_mp_residual_shift(x, x_prev)
     return x

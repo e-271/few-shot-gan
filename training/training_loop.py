@@ -359,23 +359,23 @@ def training_loop(
                     terp_fakes = np.concatenate(terp_fakes)
                     misc.save_image_grid(terp_fakes, dnnlib.make_run_dir_path('fakes_rho_terp_%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size) 
                 if plot_latent_terp:
-                    for rho in plot_latent_terp_rhos:
+                    for r in plot_latent_terp_rhos:
                         terp_latents = []
                         for i in range(grid_size[1]): # row
                             terp_start, terp_stop = grid_latents[grid_size[0]*i], grid_latents[(grid_size[0]*(i+1)) % (grid_size[0]*grid_size[1])]
                             terp_latent = np.linspace(terp_start, terp_stop, grid_size[0])
                             terp_latents.append(terp_latent)
                         terp_latents = np.concatenate(terp_latents, 0)
-                        terp_fakes = Gs.run(terp_latents, grid_labels[0:1], np.array([rho]), is_validation=True, minibatch_size=1)
-                        misc.save_image_grid(terp_fakes, dnnlib.make_run_dir_path('fakes_latent_terp_r%.2f_%06d.png' % (rho, cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
+                        terp_fakes = Gs.run(terp_latents, grid_labels[0:1], np.array([r]), is_validation=True, minibatch_size=1)
+                        misc.save_image_grid(terp_fakes, dnnlib.make_run_dir_path('fakes_latent_terp_r%.2f_%06d.png' % (r, cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
 
 
             if network_snapshot_ticks is not None and (cur_tick % network_snapshot_ticks == 0 or done):
                 pkl = dnnlib.make_run_dir_path('network-snapshot-%06d.pkl' % (cur_nimg // 1000))
                 misc.save_pkl((G, D, Gs), pkl)
-                for rho in fid_rhos:
-                    print('rho = %.2f' % rho)
-                    metrics.run(pkl, run_dir=dnnlib.make_run_dir_path(), data_dir=dnnlib.convert_path(data_dir), num_gpus=num_gpus, tf_config=tf_config, rho=rho)
+                for r in fid_rhos:
+                    print('rho = %.2f' % r)
+                    metrics.run(pkl, run_dir=dnnlib.make_run_dir_path(), data_dir=dnnlib.convert_path(data_dir), num_gpus=num_gpus, tf_config=tf_config, rho=r)
                     if cur_tick == 0: break
             # Update summaries and RunContext.
             metrics.update_autosummaries()
