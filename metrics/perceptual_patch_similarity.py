@@ -31,7 +31,7 @@ def slerp(a, b, t):
 
 #----------------------------------------------------------------------------
 
-class PPL(metric_base.MetricBase):
+class LPIPS(metric_base.MetricBase):
     def __init__(self, num_samples, epsilon, space, sampling, crop, minibatch_per_gpu, Gs_overrides, **kwargs):
         assert space in ['z', 'w']
         assert sampling in ['full', 'end']
@@ -57,30 +57,10 @@ class PPL(metric_base.MetricBase):
                 noise_vars = [var for name, var in Gs_clone.components.synthesis.vars.items() if name.startswith('noise')]
 
                 # Generate random latents and interpolation t-values.
-                lat_t01 = tf.random_normal([self.minibatch_per_gpu * 2] + Gs_clone.input_shape[1:])
-                lerp_t = tf.random_uniform([self.minibatch_per_gpu], 0.0, 1.0 if self.sampling == 'full' else 0.0)
+                latents = tf.random_normal([self.minibatch_per_gpu * 2] + Gs_clone.input_shape[1:])
                 labels = tf.reshape(tf.tile(self._get_random_labels_tf(self.minibatch_per_gpu), [1, 2]), [self.minibatch_per_gpu * 2, -1])
-
-                # Interpolate in W or Z.
-                if self.space == 'w':
-                    dlat_t01 = Gs_clone.components.mapping.get_output_for(lat_t01, labels, np.array([rho]), **Gs_kwargs)
-                    dlat_t01 = tf.cast(dlat_t01, tf.float32)
-                    dlat_t0, dlat_t1 = dlat_t01[0::2], dlat_t01[1::2]
-                    dlat_e0 = tflib.lerp(dlat_t0, dlat_t1, lerp_t[:, np.newaxis, np.newaxis])
-                    dlat_e1 = tflib.lerp(dlat_t0, dlat_t1, lerp_t[:, np.newaxis, np.newaxis] + self.epsilon)
-                    dlat_e01 = tf.reshape(tf.stack([dlat_e0, dlat_e1], axis=1), dlat_t01.shape)
-                else: # space == 'z'
-                    lat_t0, lat_t1 = lat_t01[0::2], lat_t01[1::2]
-                    lat_e0 = slerp(lat_t0, lat_t1, lerp_t[:, np.newaxis])
-                    lat_e1 = slerp(lat_t0, lat_t1, lerp_t[:, np.newaxis] + self.epsilon)
-                    lat_e01 = tf.reshape(tf.stack([lat_e0, lat_e1], axis=1), lat_t01.shape)
-                    dlat_e01 = Gs_clone.components.mapping.get_output_for(lat_e01, labels, np.array([rho]), **Gs_kwargs)
-
-                # Synthesize images.
-                with tf.control_dependencies([var.initializer for var in noise_vars]): # use same noise inputs for the entire minibatch
-                    import pdb; pdb.set_trace()
-                    images = Gs_clone.components.synthesis.get_output_for(dlat_e01, np.array([rho]), randomize_noise=False, **Gs_kwargs)
-                    images = tf.cast(images, tf.float32)
+                images = Gs_clone.get_output_for(latents, labels, np.array([rho]), **Gs_kwargs)
+                images = tf.cast(images, tf.float32)
 
                 # Crop only the face region.
                 if self.crop:
