@@ -73,6 +73,9 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
     D_loss.gamma = 10
     metrics = [metric_defaults[x] for x in metrics]
     desc = 'stylegan2'
+    sched.tick_kimg_base = 1
+    sched.tick_kimg_dict = {} #{8:28, 16:24, 32:20, 64:16, 128:12, 256:8, 512:6, 1024:4}): # Resolution-specific overrides.
+
 
     desc += '-' + dataset
     dataset_args = EasyDict(tfrecord_dir=dataset)
@@ -138,8 +141,6 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
         train.resume_with_new_nets = True
         G_loss = EasyDict(func_name='training.loss.G_logistic_ns_pathreg_adareg', rho=rho)
         D_loss = EasyDict(func_name='training.loss.D_logistic_r1_adareg', rho=rho)
-        sched.tick_kimg_base = 1
-        sched.tick_kimg_dict = {} #{8:28, 16:24, 32:20, 64:16, 128:12, 256:8, 512:6, 1024:4}): # Resolution-specific overrides.
 
 
         # TODO(me): Delete those that are crappy (d, b?)
