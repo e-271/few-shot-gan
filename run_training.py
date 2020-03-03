@@ -69,7 +69,7 @@ def run(dataset, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, r
     D.scale_func = None
     sched.G_lrate_base = sched.D_lrate_base = lrate_base #0.002
     sched.minibatch_size_base = 32
-    sched.minibatch_gpu_base = 2
+    sched.minibatch_gpu_base = 4
     D_loss.gamma = 10
     metrics = [metric_defaults[x] for x in metrics]
     desc = 'stylegan2'
@@ -218,13 +218,13 @@ def main():
     parser.add_argument('--total-kimg', help='Training length in thousands of images (default: %(default)s)', metavar='KIMG', default=25000, type=int)
     parser.add_argument('--gamma', help='R1 regularization weight (default is config dependent)', default=None, type=float)
     parser.add_argument('--mirror-augment', help='Mirror augment (default: %(default)s)', default=False, metavar='BOOL', type=_str_to_bool)
-    parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid1k', type=_parse_comma_sep)
+    parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid5k,lpips', type=_parse_comma_sep)
     parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')
     parser.add_argument('--rho', help='Adaptive regularization weight', default=0, type=float)
     parser.add_argument('--lrate-base', help='Base learning rate for G and D', default=0.002, type=float)
     parser.add_argument('--resume-kimg', help='kimg to resume from, affects scheduling', default=0, type=int)
-    parser.add_argument('--img-ticks', help='How often to save images', default=10, type=int)
-    parser.add_argument('--net-ticks', help='How often to save network snapshots', default=50, type=int)
+    parser.add_argument('--img-ticks', help='How often to save images', default=1, type=int)
+    parser.add_argument('--net-ticks', help='How often to save network snapshots', default=10, type=int)
 
     args = parser.parse_args()
 

@@ -4,27 +4,21 @@
 if [[ $(hostname) == "ca"* ]];
 then
 echo $(hostname)
-
 lr=0.0002
 a=0
 tx="kannada4K"
+kimg=500
+dir="table3"
+for N in 1 #10 25
+do
+for m in r #t s
+do
 
-qsub sgan_ca.qsub 10 t $a $lr $tx
-#qsub sgan_ca.qsub 10 r $a $lr $tx
-#qsub sgan_ca.qsub 50 r $a $lr $tx
-#qsub sgan_ca.qsub 100 r $a $lr $tx
+qsub sgan_ca.qsub $N $m $a $lr $tx $kimg $dir
 
+done
+done
 
-#for n in 1 10 100 1000 4000
-#do
-#for a in 0.1 0.01 0.001
-#do
-#for lr in 0.00002
-#do
-#qsub sgan_ca.qsub $n r $a $lr
-#done
-#done
-#done
 
 
 elif [[ $(hostname) == "nr"* ]];
@@ -32,14 +26,18 @@ then
 lr=0.0002
 a=0
 tx="kannada4K"
+kimg=500
+dir='table1'
 
+for N in 1 #10 25
+do
+for m in r # t s
+do
 
-qsub sgan_nr.qsub -v "N=10, model=t, rho=$a, lrate=$lr, tx=$tx"
-qsub sgan_nr.qsub -v "N=10, model=r, rho=$a, lrate=$lr, tx=$tx"
-qsub sgan_nr.qsub -v "N=50, model=t, rho=$a, lrate=$lr, tx=$tx"
-qsub sgan_nr.qsub -v "N=100, model=r, rho=$a, lrate=$lr, tx=$tx"
+qsub sgan_nr.qsub -v "N=$N, model=$m, rho=$a, lrate=$lr, tx=$tx, kimg=$kimg, dir=$dir"
 
-
+done
+done
 
 
 #qsub sgan_nr.qsub -v "N=50, model=r, rho=$a, lrate=$lr, tx=$tx"

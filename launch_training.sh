@@ -9,17 +9,18 @@ reg=$3
 lr=$4
 tx=$5
 kimg=$6
+dir=$7
 
 if [[ $(hostname) == "jb"* ]]; # RTX
 then
 
 ddir='/work/erobb/datasets/'
-rdir='/work/erobb/results/'
+rdir='/work/erobb/results/$7'
 
 else
 
 ddir='./datasets'
-rdir='./results'
+rdir='./results/$7'
 
 fi
 
