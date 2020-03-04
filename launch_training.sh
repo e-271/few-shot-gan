@@ -15,17 +15,17 @@ if [[ $(hostname) == "jb"* ]]; # RTX
 then
 
 ddir='/work/erobb/datasets/'
-rdir='/work/erobb/results/$7'
+rdir="/work/erobb/results/$7"
 
 else
 
 ddir='./datasets'
-rdir='./results/$7'
+rdir="./results/$7"
 
 fi
 
 
-echo $1 $2 $3 $4 $5
+echo $1 $2 $3 $4 $5 $6 $7
 
 hostname
 echo $CUDA_VISIBLE_DEVICES

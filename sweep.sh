@@ -6,10 +6,10 @@ then
 echo $(hostname)
 lr=0.0002
 a=0
-tx="kannada4K"
+tx="anime25"
 kimg=500
-dir="table3"
-for N in 1 #10 25
+dir="teaser"
+for N in 9 #1 10 25
 do
 for m in r #t s
 do
@@ -25,13 +25,17 @@ elif [[ $(hostname) == "nr"* ]];
 then
 lr=0.0002
 a=0
-tx="kannada4K"
-kimg=500
-dir='table1'
+#tx="kannada4K"
+#tx="anime25"
+tx="tower25"
+#tx="dog25"
+kimg=200
+dir="table1"
+#dir="table3"
 
-for N in 1 #10 25
+for N in 1 10 25
 do
-for m in r # t s
+for m in r t s
 do
 
 qsub sgan_nr.qsub -v "N=$N, model=$m, rho=$a, lrate=$lr, tx=$tx, kimg=$kimg, dir=$dir"
