@@ -11,15 +11,48 @@ import dnnlib
 import dnnlib.tflib as tflib
 import re
 import sys
+from dnnlib import EasyDict
+from training import dataset
+
 
 import pretrained_networks
+import tensorflow as tf
 
 #----------------------------------------------------------------------------
 
 def generate_images(network_pkl, seeds, truncation_psi):
-    print('Loading networks from "%s"...' % network_pkl)
-    _G, _D, Gs = pretrained_networks.load_networks(network_pkl)
+
+    # For residual adapter layerwise contribution plots
+    # Instructions for hackage:
+    # vi +552 training/networks_stylegan2.py
+    # rho_in * (latent_idx == <layer>)
+    if True:
+        G_args         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
+        D_args         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
+        G_args['adapt_func'] = D_args['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
+        dset="anime25"
+        dataset_args = EasyDict(tfrecord_dir=dset)
+        data_dir="/mnt/slow_ssd/erobb/datasets"
+
+        # Load training set.
+        dnnlib.tflib.init_tf()
+        training_set = dataset.load_dataset(data_dir=dnnlib.convert_path(data_dir), verbose=True, **dataset_args)
+        print('Constructing networks...')
+        _G = tflib.Network('G', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **G_args)
+        _D = tflib.Network('D', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **D_args)
+        Gs = _G.clone('Gs')
+        print('Loading networks from "%s"...' % network_pkl)
+        rG, rD, rGs = pretrained_networks.load_networks(network_pkl)
+        _G.copy_vars_from(rG);
+        _D.copy_vars_from(rD);
+        Gs.copy_vars_from(rGs)
+
+
+    #print('Loading networks from "%s"...' % network_pkl)
+    #_G, _D, Gs = pretrained_networks.load_networks(network_pkl)
     noise_vars = [var for name, var in Gs.components.synthesis.vars.items() if name.startswith('noise')]
+    
+
 
     Gs_kwargs = dnnlib.EasyDict()
     Gs_kwargs.output_transform = dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True)
@@ -32,8 +65,33 @@ def generate_images(network_pkl, seeds, truncation_psi):
         rnd = np.random.RandomState(seed)
         z = rnd.randn(1, *Gs.input_shape[1:]) # [minibatch, component]
         tflib.set_vars({var: rnd.randn(*var.shape.as_list()) for var in noise_vars}) # [height, width]
-        images = Gs.run(z, None, **Gs_kwargs) # [minibatch, height, width, channel]
-        PIL.Image.fromarray(images[0], 'RGB').save(dnnlib.make_run_dir_path('seed%04d.png' % seed))
+        rho = np.array([0])
+        images = Gs.run(z, None, rho, **Gs_kwargs) # [minibatch, height, width, channel]
+        PIL.Image.fromarray(images[0], 'RGB').save(dnnlib.make_run_dir_path('seed%04d.png' % seed))     
+
+        
+        sz=10
+        terp_fakes = []
+        terp_rhos = np.linspace(0,1,sz)
+        i = 0
+        for j in range(sz): # col
+           terp_fake = Gs.run(z, None, terp_rhos[j:j+1], **Gs_kwargs)
+           terp_fakes.append(terp_fake)
+        terp_fakes = np.concatenate(terp_fakes, 2)
+        print(terp_fakes.shape)
+        PIL.Image.fromarray(terp_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('terp_rho_seed%04d.png' % seed))
+
+
+        terp_start, terp_stop = z, rnd.randn(1, *Gs.input_shape[1:])
+        terp_latent = np.linspace(terp_start, terp_stop, sz)
+        terp_fakes = []
+        for j in range(sz):
+            terp_fake = Gs.run(terp_latent[j], None, rho, **Gs_kwargs)
+            terp_fakes.append(terp_fake)
+        terp_fakes=np.concatenate(terp_fakes, 2)
+        print(terp_fakes.shape)
+        PIL.Image.fromarray(terp_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('terp_latent_seed%04d.png' % seed))
+
 
 #----------------------------------------------------------------------------
 
