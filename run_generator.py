@@ -13,26 +13,28 @@ import re
 import sys
 from dnnlib import EasyDict
 from training import dataset
-
+from training import networks_stylegan2
 
 import pretrained_networks
 import tensorflow as tf
 
 #----------------------------------------------------------------------------
 
-def generate_images(network_pkl, seeds, truncation_psi):
+def generate_images(network_pkl, seeds, truncation_psi, layer_toggle, layer_dset, layer_ddir):
 
     # For residual adapter layerwise contribution plots
     # Instructions for hackage:
     # vi +552 training/networks_stylegan2.py
     # rho_in * (latent_idx == <layer>)
-    if True:
+    if layer_toggle:
+        stylegan2_network.layer_toggle = layer_toggle
         G_args         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
         D_args         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
         G_args['adapt_func'] = D_args['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
-        dset="anime25"
+        dset=layer_dset # "anime25"
         dataset_args = EasyDict(tfrecord_dir=dset)
-        data_dir="/mnt/slow_ssd/erobb/datasets"
+        data_dir=layer_ddir # "/mnt/slow_ssd/erobb/datasets"
+        
 
         # Load training set.
         dnnlib.tflib.init_tf()
@@ -46,14 +48,11 @@ def generate_images(network_pkl, seeds, truncation_psi):
         _G.copy_vars_from(rG);
         _D.copy_vars_from(rD);
         Gs.copy_vars_from(rGs)
+    else:
+        print('Loading networks from "%s"...' % network_pkl)
+        _G, _D, Gs = pretrained_networks.load_networks(network_pkl)
 
-
-    #print('Loading networks from "%s"...' % network_pkl)
-    #_G, _D, Gs = pretrained_networks.load_networks(network_pkl)
     noise_vars = [var for name, var in Gs.components.synthesis.vars.items() if name.startswith('noise')]
-    
-
-
     Gs_kwargs = dnnlib.EasyDict()
     Gs_kwargs.output_transform = dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True)
     Gs_kwargs.randomize_noise = False
@@ -65,7 +64,7 @@ def generate_images(network_pkl, seeds, truncation_psi):
         rnd = np.random.RandomState(seed)
         z = rnd.randn(1, *Gs.input_shape[1:]) # [minibatch, component]
         tflib.set_vars({var: rnd.randn(*var.shape.as_list()) for var in noise_vars}) # [height, width]
-        rho = np.array([0])
+        rho = np.array([1])
         images = Gs.run(z, None, rho, **Gs_kwargs) # [minibatch, height, width, channel]
         PIL.Image.fromarray(images[0], 'RGB').save(dnnlib.make_run_dir_path('seed%04d.png' % seed))     
 
@@ -190,6 +189,10 @@ Run 'python %(prog)s <subcommand> --help' for subcommand help.''',
     parser_generate_images.add_argument('--seeds', type=_parse_num_range, help='List of random seeds', required=True)
     parser_generate_images.add_argument('--truncation-psi', type=float, help='Truncation psi (default: %(default)s)', default=0.5)
     parser_generate_images.add_argument('--result-dir', help='Root directory for run results (default: %(default)s)', default='results', metavar='DIR')
+    parser_generate_images.add_argument('--layer-toggle', type=int, help='Which adaptive layer to toggle', default=None, metavar='DIR')
+    parser_generate_images.add_argument('--layer-dset', help='Dataset name, needed for layer plots', default=None, metavar='DIR')
+    parser_generate_images.add_argument('--layer-ddir', help='Dataset dir, needed for layer plots', default=None, metavar='DIR')
+
 
     parser_style_mixing_example = subparsers.add_parser('style-mixing-example', help='Generate style mixing video')
     parser_style_mixing_example.add_argument('--network', help='Network pickle filename', dest='network_pkl', required=True)

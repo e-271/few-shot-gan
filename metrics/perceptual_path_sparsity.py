@@ -29,9 +29,17 @@ def slerp(a, b, t):
     d = a * tf.math.cos(p) + c * tf.math.sin(p)
     return normalize(d)
 
+def gini_index(x):
+    rowstack, colstack = np.meshgrid(x, x)
+    md = np.mean(np.sqrt((rowstack - colstack)**2))
+    am = np.mean(x)
+    rmd = md / am
+    gini = rmd / 2
+    return gini
+
 #----------------------------------------------------------------------------
 
-class PPL(metric_base.MetricBase):
+class PPS(metric_base.MetricBase):
     def __init__(self, num_samples, epsilon, space, sampling, crop, minibatch_per_gpu, Gs_overrides, **kwargs):
         assert space in ['z', 'w']
         assert sampling in ['full', 'end']
@@ -106,11 +114,13 @@ class PPL(metric_base.MetricBase):
             self._report_progress(begin, self.num_samples)
             all_distances += tflib.run(distance_expr)
         all_distances = np.concatenate(all_distances, axis=0)
+        self._report_result(gini_index(all_distances))
+
 
         # Reject outliers.
-        lo = np.percentile(all_distances, 1, interpolation='lower')
-        hi = np.percentile(all_distances, 99, interpolation='higher')
-        filtered_distances = np.extract(np.logical_and(lo <= all_distances, all_distances <= hi), all_distances)
-        self._report_result(np.mean(filtered_distances))
+        # lo = np.percentile(all_distances, 1, interpolation='lower')
+        # hi = np.percentile(all_distances, 99, interpolation='higher')
+        # filtered_distances = np.extract(np.logical_and(lo <= all_distances, all_distances <= hi), all_distances)
+        #self._report_result(np.mean(filtered_distances))
 
 #----------------------------------------------------------------------------

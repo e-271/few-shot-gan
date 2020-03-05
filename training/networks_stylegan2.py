@@ -14,6 +14,10 @@ from dnnlib.tflib.ops.upfirdn_2d import upsample_2d, downsample_2d, upsample_con
 from dnnlib.tflib.ops.fused_bias_act import fused_bias_act
 from dnnlib.util import call_func_by_name
 
+
+# TODO(me): Hacky global variable for layer toggle plot.
+layer_toggle = None
+
 # NOTE: Do not import any application-specific modules here!
 # Specify all network parameters as kwargs.
 
@@ -539,6 +543,10 @@ def G_synthesis_stylegan2(
     rho_in = tf.cast(rho_in, dtype)
     dlatents_in.set_shape([None, num_layers, dlatent_size])
     dlatents_in = tf.cast(dlatents_in, dtype)
+    
+    # TODO(me): Hacky
+    if layer_toggle is not None:
+        rho_in = rho_in * 0
 
     # Noise inputs.
     noise_inputs = []
@@ -549,7 +557,12 @@ def G_synthesis_stylegan2(
 
     # Single convolution layer with all the bells and whistles.
     def layer(x, layer_idx, fmaps, kernel, up=False):
-        x = modulated_conv2d_layer(x, dlatents_in[:, layer_idx], fmaps=fmaps, kernel=kernel, up=up, resample_kernel=resample_kernel, fused_modconv=fused_modconv, adapt_func=adapt_func, rho_in=rho_in) #* int(layer_idx==15))
+        # TODO(me): Hacky plotting stuff
+        if layer_toggle is not None:
+            x = modulated_conv2d_layer(x, dlatents_in[:, layer_idx], fmaps=fmaps, kernel=kernel, up=up, resample_kernel=resample_kernel, fused_modconv=fused_modconv, adapt_func=adapt_func, rho_in=int(layer_idx==layer_toggle))
+        # Normal behavior
+        else:
+            x = modulated_conv2d_layer(x, dlatents_in[:, layer_idx], fmaps=fmaps, kernel=kernel, up=up, resample_kernel=resample_kernel, fused_modconv=fused_modconv, adapt_func=adapt_func, rho_in=rho_in)
         if randomize_noise:
             noise = tf.random_normal([tf.shape(x)[0], 1, x.shape[2], x.shape[3]], dtype=x.dtype)
         else:
