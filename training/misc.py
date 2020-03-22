@@ -86,7 +86,7 @@ def parse_config_for_previous_run(run_dir):
     with open(os.path.join(run_dir, 'submit_config.pkl'), 'rb') as f:
         data = pickle.load(f)
     data = data.get('run_func_kwargs', {})
-    return dict(train=data, dataset=data.get('dataset_args', {}))
+    return dict(train=data, dataset=data.get('dataset_args', {}), dataset_eval=data.get('dataset_args_eval', {}))
 
 #----------------------------------------------------------------------------
 # Size and contents of the image snapshot grids that are exported

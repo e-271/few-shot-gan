@@ -111,6 +111,7 @@ def training_loop(
     G_loss_args             = {},       # Options for generator loss.
     D_loss_args             = {},       # Options for discriminator loss.
     dataset_args            = {},       # Options for dataset.load_dataset().
+    dataset_args_eval       = {},       # Options for dataset.load_dataset().
     sched_args              = {},       # Options for train.TrainingSchedule.
     grid_args               = {},       # Options for train.setup_snapshot_image_grid().
     metric_arg_list         = [],       # Options for MetricGroup.
@@ -145,6 +146,7 @@ def training_loop(
 
     # Load training set.
     training_set = dataset.load_dataset(data_dir=dnnlib.convert_path(data_dir), verbose=True, **dataset_args)
+    eval_set = dataset.load_dataset(data_dir=dnnlib.convert_path(data_dir), verbose=True, **dataset_args_eval)
     grid_size, grid_reals, grid_labels = misc.setup_snapshot_image_grid(training_set, **grid_args)
     misc.save_image_grid(grid_reals, dnnlib.make_run_dir_path('reals.png'), drange=training_set.dynamic_range, grid_size=grid_size)
 
@@ -347,7 +349,6 @@ def training_loop(
             if image_snapshot_ticks is not None and (cur_tick % image_snapshot_ticks == 0 or done):
                 grid_fakes = Gs.run(grid_latents, grid_labels, rho, is_validation=True, minibatch_size=sched.minibatch_gpu)
                 misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('fakes%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
-                #terp_latents = np.concatenate([[grid_latents[i]]*grid_size[1] for i in range(0, grid_size[0]*grid_size[1], grid_size[1])])
                 if plot_rho_terp:
                     terp_fakes = []
                     terp_rhos = np.linspace(0,1,grid_size[0])
@@ -389,5 +390,5 @@ def training_loop(
     # All done.
     summary_log.close()
     training_set.close()
-
+    eval_set.close()
 #----------------------------------------------------------------------------

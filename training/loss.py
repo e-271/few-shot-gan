@@ -166,20 +166,21 @@ def G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_
             fake_images_out, fake_dlatents_out = G.get_output_for(pl_latents, pl_labels, rho, is_training=True, return_dlatents=True)
 
         # Compute |J*y|.
-        pl_noise = tf.random_normal(tf.shape(fake_images_out)) / np.sqrt(np.prod(G.output_shape[2:]))
-        pl_grads = tf.gradients(tf.reduce_sum(fake_images_out * pl_noise), [fake_dlatents_out])[0]
-        pl_lengths = tf.sqrt(tf.reduce_mean(tf.reduce_sum(tf.square(pl_grads), axis=2), axis=1))
+        pl_noise = tf.random_normal(tf.shape(fake_images_out)) / np.sqrt(np.prod(G.output_shape[2:])) # N x 3 x 256 x 256
+        pl_grads = tf.gradients(tf.reduce_sum(fake_images_out * pl_noise), [fake_dlatents_out])[0] # N x 14 x 512 (synthesis network output w from Nx512 z)?
+
+        pl_lengths = tf.sqrt(tf.reduce_mean(tf.reduce_sum(tf.square(pl_grads), axis=2), axis=1)) # N x 1??
         pl_lengths = autosummary('Loss/pl_lengths', pl_lengths)
 
         # Track exponential moving average of |J*y|.
         with tf.control_dependencies(None):
             pl_mean_var = tf.Variable(name='pl_mean', trainable=False, initial_value=0.0, dtype=tf.float32)
-        pl_mean = pl_mean_var + pl_decay * (tf.reduce_mean(pl_lengths) - pl_mean_var)
+        pl_mean = pl_mean_var + pl_decay * (tf.reduce_mean(pl_lengths) - pl_mean_var) # Scalar. If this is EMA where is the / N... Passed in from elsewhere??
         pl_update = tf.assign(pl_mean_var, pl_mean)
 
         # Calculate (|J*y|-a)^2.
         with tf.control_dependencies([pl_update]):
-            pl_penalty = tf.square(pl_lengths - pl_mean)
+            pl_penalty = tf.square(pl_lengths - pl_mean) # E_ij[||J*y||_2 - a]
             pl_penalty = autosummary('Loss/pl_penalty', pl_penalty)
 
         # Apply weight.
@@ -210,6 +211,94 @@ def G_logistic_ns_pathreg_adareg(G, D, opt, training_set, minibatch_size, pl_min
     ada_reg = autosummary('Loss/adareg/G', ada_reg)
     reg += ada_reg
     return loss, reg
+
+
+#----------------------------------------------------------------------------
+# Jacobian clamping 
+# TODO what value for epsilon, lambdas?
+def G_logistic_ns_pathreg_jc(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, epsilon=0.1, lambda_min=1.0, lambda_max=10.0):
+    loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
+
+    # Jacobian clamping regularization.
+    with tf.name_scope('JCReg'):
+        # Evaluate the regularization term using a smaller minibatch to conserve memory.
+        jc_minibatch = minibatch_size // pl_minibatch_shrink
+        jc_latents1 = tf.random_normal([jc_minibatch] + G.input_shapes[0][1:])
+        jc_noise = tf.random_normal([jc_minibatch] + G.input_shapes[0][1:])
+        jc_latents2 = epsilon * jc_noise / tf.norm(jc_noise) + jc_latents1
+        jc_labels = training_set.get_random_labels_tf(jc_minibatch)
+        rho = np.array([1])
+        fake_images_out1, fake_dlatents_out1 = G.get_output_for(jc_latents1, jc_labels, rho, is_training=True, return_dlatents=True)
+        fake_images_out2, fake_dlatents_out2 = G.get_output_for(jc_latents2, jc_labels, rho, is_training=True, return_dlatents=True)
+
+        # TODO(me): Do this in w space (fake_dlatents_out) or z space (jc_latents)?
+        jc_norm = tf.norm(fake_images_out1 - fake_images_out2) / tf.norm(fake_dlatents_out1 - fake_dlatents_out2)
+        jc_norm = autosummary('Loss/jc_norm', jc_norm)
+        jc_reg = tf.square(lambda_max - tf.maximum(lambda_max, jc_norm))
+        jc_reg += tf.square(lambda_min - tf.minimum(lambda_min, jc_norm))
+        jc_reg = autosummary('Loss/jc_reg', jc_reg)
+        # TODO(me): Removed so I can pick hyperparams.
+        reg += jc_reg
+
+    return loss, reg
+
+
+#----------------------------------------------------------------------------
+# Gradient sparsity regularizaion 
+
+# Gini index for 1D tf.tensor
+def gini_index(x):
+    rowstack, colstack = tf.meshgrid(x, x)
+    md = tf.reduce_mean(tf.sqrt((rowstack - colstack)**2))
+    am = tf.reduce_mean(x) 
+    rmd = md / am
+    gini = rmd / 2
+    return gini
+
+def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, gs_minibatch_shrink=2, gs_decay=0.1, gs_weight=2.0):
+    _ = opt
+    latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
+    labels = training_set.get_random_labels_tf(minibatch_size)
+    rho = np.array([1])
+    fake_images_out, fake_dlatents_out = G.get_output_for(latents, labels, rho, is_training=True, return_dlatents=True)
+    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)
+    loss = tf.nn.softplus(-fake_scores_out) # -log(sigmoid(fake_scores_out))
+
+    # Path length regularization.
+    with tf.name_scope('GradSparsityReg'):
+
+        # Evaluate the regularization term using a smaller minibatch to conserve memory.
+        if gs_minibatch_shrink > 1:
+            gs_minibatch = minibatch_size // gs_minibatch_shrink
+            gs_latents = tf.random_normal([gs_minibatch] + G.input_shapes[0][1:])
+            gs_labels = training_set.get_random_labels_tf(gs_minibatch)
+            fake_images_out, fake_dlatents_out = G.get_output_for(gs_latents, gs_labels, rho, is_training=True, return_dlatents=True)
+
+        # Compute |J*y|.a
+        # TODO why is there noise. Do we want noise?
+        gs_noise = tf.random_normal(tf.shape(fake_images_out)) / np.sqrt(np.prod(G.output_shape[2:])) # N x 3 x 256 x 256
+        gs_grads = tf.gradients(tf.reduce_sum(fake_images_out * gs_noise), [fake_dlatents_out])[0] # N x 14 x 512 (synthesis network output w from Nx512 z)?
+
+        # TODO Not to sure about just flattening this fker.
+        gs_sparsity = gini_index(tf.reshape(gs_grads, [-1])) #tf.sqrt(tf.reduce_mean(tf.reduce_sum(tf.square(gs_grads), axis=2), axis=1))
+        gs_sparsity = autosummary('Loss/gs_sparsity', gs_sparsity)
+
+        # TODO not sure we really want this fancy buisiness, unless we use the initial value of sparsity (seems smart) or a large decay like 0.1 (also)
+        # Track exponential moving average of |J*y|.
+        with tf.control_dependencies(None):
+            gs_mean_var = tf.Variable(name='gs_mean', trainable=False, initial_value=0.0, dtype=tf.float32)
+        gs_mean = gs_mean_var + gs_decay * (tf.reduce_mean(gs_sparsity) - gs_mean_var) # If this is EMA where the fuck is the / N... Passed in from elsewhere??
+        gs_update = tf.assign(gs_mean_var, gs_mean)
+
+        # Calculate (|J*y|-a)^2.
+        with tf.control_dependencies([gs_update]):
+            gs_penalty = tf.square(gs_sparsity - gs_mean) # E_ij[||J*y||_2 - a]
+            gs_penalty = autosummary('Loss/gs_penalty', gs_penalty)
+
+        reg = gs_penalty * gs_weight
+
+    return loss, reg
+
 
 
 def D_logistic_r1_adareg(G, D, opt, training_set, minibatch_size, reals, labels, gamma=10.0, rho=0.0):

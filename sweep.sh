@@ -1,64 +1,39 @@
 #!/bin/bash
 
+echo $(hostname)
 
 if [[ $(hostname) == "ca"* ]];
 then
-echo $(hostname)
-lr=0.0002
-a=0
-tx="anime25"
-kimg=500
-dir="teaser"
-for N in 9 #1 10 25
+
+dir="loss_testing"
+N=25
+kimg=2000
+m=r
+tx="tower25"
+ev="tower"
+
+for loss in "pr" "gs"
 do
-for m in r #t s
-do
-
-qsub sgan_ca.qsub $N $m $a $lr $tx $kimg $dir
-
+qsub sgan_ca.qsub $N $kimg $m $loss $tx $ev $dir
 done
-done
-
-
 
 elif [[ $(hostname) == "nr"* ]];
 then
-lr=0.0002
-a=0
-#tx="kannada4K"
-#tx="anime25"
-tx="tower25"
-#tx="dog25"
-kimg=200
-dir="table1"
-#dir="table3"
 
-for N in 1 10 25
+dir="personalization"
+N=25
+kimg=100
+for tx in "obama25" "rei12"
 do
-for m in r t s
+for m in r
 do
-
-qsub sgan_nr.qsub -v "N=$N, model=$m, rho=$a, lrate=$lr, tx=$tx, kimg=$kimg, dir=$dir"
-
+qsub sgan_nr.qsub -v "N=$N, model=$m, tx=$tx, kimg=$kimg, dir=$dir"
 done
 done
 
-
-#qsub sgan_nr.qsub -v "N=50, model=r, rho=$a, lrate=$lr, tx=$tx"
-#qsub sgan_nr.qsub -v "N=50, model=v, rho=$a, lrate=$lr, tx=$tx"
-#qsub sgan_nr.qsub -v "N=50, model=t, rho=$a, lrate=$lr, tx=$tx"
+qsub sgan_nr.qsub -v "N=$N, model=t, tx=$tx, kimg=$kimg, dir=$dir"
 
 
-#for n in 50 #10 100 1000 4000
-#do
-#for a in 0 #0.05 0.005 0.0005
-#do
-#for lr in 0.0002
-#do
-#qsub sgan_nr.qsub -v "N=$n, model=r, rho=$a, lrate=$lr"
-#done
-#done
-#done
 
 
 # Run on some local machine

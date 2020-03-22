@@ -13,10 +13,11 @@ from dnnlib import EasyDict
 metric_defaults = EasyDict([(args.name, args) for args in [
     EasyDict(name='fid50k',    func_name='metrics.frechet_inception_distance.FID', num_images=50000, minibatch_per_gpu=8),
     EasyDict(name='fid1k',    func_name='metrics.frechet_inception_distance.FID', num_images=1000, minibatch_per_gpu=8),
-    EasyDict(name='fid5k',    func_name='metrics.frechet_inception_distance.FID', num_images=1000, minibatch_per_gpu=8),
+    EasyDict(name='fid5k',    func_name='metrics.frechet_inception_distance.FID', num_images=5000, minibatch_per_gpu=8),
+    EasyDict(name='fid10k',    func_name='metrics.frechet_inception_distance.FID', num_images=10000, minibatch_per_gpu=8),
     EasyDict(name='is50k',     func_name='metrics.inception_score.IS',             num_images=50000, num_splits=10, minibatch_per_gpu=8),
     EasyDict(name='lpips', func_name='metrics.perceptual_patch_similarity.LPIPS',     num_samples=100, epsilon=1e-4, space='z', sampling='full', crop=True, minibatch_per_gpu=4, Gs_overrides=dict(dtype='float32', mapping_dtype='float32')),
-    EasyDict(name='pps', func_name='metrics.perceptual_path_sparsity.PPS',     num_samples=1000, epsilon=1e-4, space='z', sampling='full', crop=True, minibatch_per_gpu=4, Gs_overrides=dict(dtype='float32', mapping_dtype='float32')),
+    EasyDict(name='ppgs', func_name='metrics.perceptual_path_sparsity.PPGS',     num_samples=1000, epsilon=1e-4, space='z', sampling='full', crop=True, minibatch_per_gpu=4, Gs_overrides=dict(dtype='float32', mapping_dtype='float32')),
     EasyDict(name='ppl_zfull', func_name='metrics.perceptual_path_length.PPL',     num_samples=1000, epsilon=1e-4, space='z', sampling='full', crop=True, minibatch_per_gpu=4, Gs_overrides=dict(dtype='float32', mapping_dtype='float32')),
     EasyDict(name='ppl_wfull', func_name='metrics.perceptual_path_length.PPL',     num_samples=50000, epsilon=1e-4, space='w', sampling='full', crop=True, minibatch_per_gpu=4, Gs_overrides=dict(dtype='float32', mapping_dtype='float32')),
     EasyDict(name='ppl_zend',  func_name='metrics.perceptual_path_length.PPL',     num_samples=50000, epsilon=1e-4, space='z', sampling='end', crop=True, minibatch_per_gpu=4, Gs_overrides=dict(dtype='float32', mapping_dtype='float32')),

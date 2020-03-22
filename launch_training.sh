@@ -1,112 +1,113 @@
 #!/bin/bash
 
 # Usage
-# ./launch_training.py N model tx kimg dir pt idx
+# ./launch_training.sh N kimg model loss tx eval dir pt idx
 
-N=$1
-model=$2 # r, t, s, a
-reg=0
-lr=0.002
-tx=$3
-kimg=$4
-dir=$5
-pt=$6
-i=$7
-
-
-if [[ $(hostname) == "jb"* ]]; # RTX
-then
-
-ddir='/work/erobb/datasets/'
-rdir="/work/erobb/results/$7"
-
-else # CA or NR
-
-ddir='./datasets'
-rdir="/work/newriver/erobb/results/$7"
-
+if (( $# < 7 )); then
+    echo "Usage: ./launch_training.sh N kimg model loss tx eval dir (pt) (idx)"
+    exit 1
 fi
 
+N=$1
+kimg=$2
+model=$3 # r, t, s, a
+lr=0.002
+loss=$4 #'G_logistic_ns_gsreg'
+tx=$5
+ev=$6
+dir=$7
+pt=$8
+i=$9
 
-echo $1 $2 $3 $4 $5 $6 $7
 
-hostname
+echo $1 $2 $3 $4 $5 $6 $7 $8
+echo $(hostname)
 echo $CUDA_VISIBLE_DEVICES
 source activate py3tf115
 
 
-echo $pt
+if [[ $loss == "pr" ]];
+then
+loss='G_logistic_ns_pathreg'
+
+elif [[ $loss == "gs" ]];
+then
+loss='G_logistic_ns_gsreg'
+
+elif [[ $loss == "jc" ]];
+then
+loss='G_logistic_ns_pathreg_jc'
+fi
+echo $loss $loss
+
+
+
+if [[ $(hostname) == "jb"* ]]; # RTX
+then
+ddir='/work/erobb/datasets/'
+rdir="/work/erobb/results/$dir"
+else # ARC
+ddir='/work/newriver/erobb/datasets'
+rdir="/work/newriver/erobb/results/$dir"
+fi
 
 if [[ $pt == "" ]]
 then
-
-echo "automatically choosing pretrain"
 i=0
-
+echo "automatically choosing pretrain"
 if [[ $tx == "kannada"* ]]
 then
 pt='./pickles/eng-config-f-10M.pkl'
-
 elif [[ $tx == "tower"* ]]
 then
 pt='./pickles/church-config-f.pkl'
-
 elif [[ $tx == "bus"* ]]
 then
 pt='./pickles/car-config-f.pkl'
-
-
 elif [[ $tx == "dog"* ]]
 then
 pt='./pickles/cat-config-f.pkl'
-
-
 elif [[ $tx == "danbooru"* ]] || [[ $tx == "anime"* ]] || [[ $tx == "rei"* ]] || [[ $tx == "obama"* ]]
 then
 pt='./pickles/ffhq-config-f.pkl'
-
 fi
 fi
 
-echo $pt
-
-
-
-
-#rv=''
-#rvi=0
-#rt=$pt
-#rti=0
-#rs=$pt
-#rsi=0
-#rr=$pt
-#rri=0
-
-#rt="/work/newriver/erobb/results/table3/dog25/00001-stylegan2-dog25-2gpu-config-f-25img-rho0.0E00-lr2.0E-04/network-snapshot-000143.pkl"
-#rti=143
-#rr="/work/newriver/erobb/results/table3/anime25/00015-stylegan2-anime25-2gpu-config-c-b-25img-rho0.0E00-lr2.0E-04-aug/network-snapshot-000102.pkl"
-#rri=102
+echo $i $pt
 
 
 # Vanilla GAN baseline
 if [[ $model == "v" ]]
 then
-python run_training.py --num-gpus=2 --data-dir=$ddir --config=config-f --dataset=$tx --total-kimg=$kimg --max-images=$N --resume-pkl=$pt --resume-kimg=$i --lrate-base=$lr --result-dir=$rdir/$tx
-
+cfg="config-f"
+pt=""
 # TGAN baseline
 elif [[ $model == "t" ]]
 then
-python run_training.py --num-gpus=2 --data-dir=$ddir --config=config-f --dataset=$tx --total-kimg=$kimg --max-images=$N --resume-pkl=$pt --resume-kimg=$i --lrate-base=$lr --result-dir=$rdir/$tx
-
+cfg="config-f"
 # Shift+scale baseline
 elif [[ $model == "s" ]]
 then
-python run_training.py --num-gpus=2 --data-dir=$ddir --config=config-a-gb --dataset=$tx --total-kimg=$kimg --max-images=$N --resume-pkl=$pt --resume-kimg=$i --rho=$reg --lrate-base=$lr --result-dir=$rdir/$tx
-
-# Residual adapters (ours#)
+cfg="config-ss"
+# Residual adapters
 elif [[ $model == "r" ]]
 then
-python run_training.py --num-gpus=2 --data-dir=$ddir --config=config-c-b --dataset=$tx --total-kimg=$kimg --max-images=$N --resume-pkl=$pt --resume-kimg=$i --rho=$reg --lrate-base=$lr --result-dir=$rdir/$tx
+cfg="config-ra"
 fi
+
+
+python run_training.py \
+--num-gpus=2 \
+--data-dir=$ddir \
+--config=$cfg \
+--g-loss=$loss \
+--dataset-train=$tx \
+--dataset-eval=$ev \
+--total-kimg=$kimg \
+--max-images=$N \
+--resume-pkl=$pt \
+--resume-kimg=$i \
+--lrate-base=$lr \
+--result-dir=$rdir/$tx
 
 echo "done."

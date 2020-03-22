@@ -39,7 +39,7 @@ def gini_index(x):
 
 #----------------------------------------------------------------------------
 
-class PPS(metric_base.MetricBase):
+class PPGS(metric_base.MetricBase):
     def __init__(self, num_samples, epsilon, space, sampling, crop, minibatch_per_gpu, Gs_overrides, **kwargs):
         assert space in ['z', 'w']
         assert sampling in ['full', 'end']
@@ -105,7 +105,7 @@ class PPS(metric_base.MetricBase):
 
                 # Evaluate perceptual distance.
                 img_e0, img_e1 = images[0::2], images[1::2]
-                distance_measure = misc.load_pkl('http://d36zk2xti64re0.cloudfront.net/stylegan1/networks/metrics/vgg16_zhang_perceptual.pkl')
+                distance_measure = misc.load_pkl('./pickles/vgg16_zhang_perceptual.pkl')
                 distance_expr.append(distance_measure.get_output_for(img_e0, img_e1) * (1 / self.epsilon**2))
 
         # Sampling loop.
