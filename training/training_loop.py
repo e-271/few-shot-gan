@@ -132,13 +132,14 @@ def training_loop(
     save_weight_histograms  = True,    # Include weight histograms in the tfevents file?
     plot_rho_terp           = True,     # Save plot interpolating rho
     plot_latent_terp        = True,     # Save plot interpolating through latent space
-    plot_latent_terp_rhos    = [0.5, 1.0],      # Fixed rho for latent interpolation plot
-    fid_rhos    =  [0.5, 1.0],      # Fixed rho for latent interpolation plot
+    plot_latent_terp_rhos   = [1.0],    # Rhos for latent interpolation plot
+    fid_rhos                = [1.0],    # Rhos for latent interpolation plot
     resume_pkl              = None,     # Network pickle to resume training from, None = train from scratch.
     resume_kimg             = 0.0,      # Assumed training progress at the beginning. Affects reporting and training schedule.
     resume_time             = 0.0,      # Assumed wallclock time at the beginning. Affects reporting.
     resume_with_new_nets    = False,
     resume_with_own_vars    = False):   # Construct new networks according to G_args and D_args before resuming training?
+
 
     # Initialize dnnlib and TensorFlow.
     tflib.init_tf(tf_config)
@@ -165,6 +166,8 @@ def training_loop(
                 D.copy_vars_from(rD); 
                 Gs.copy_vars_from(rGs)
             else: G = rG; D = rD; Gs = rGs
+
+    E = tflib.Network('E', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **D_args)
 
     # Print layers and generate initial image snapshot.
     G.print_layers(); D.print_layers()
@@ -371,7 +374,8 @@ def training_loop(
                         misc.save_image_grid(terp_fakes, dnnlib.make_run_dir_path('fakes_latent_terp_r%.2f_%06d.png' % (r, cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
 
 
-            if network_snapshot_ticks is not None and (cur_tick % network_snapshot_ticks == 0 or done):
+            if network_snapshot_ticks is not None and (cur_tick % network_snapshot_ticks == 0 or done 
+                                                   or (cur_tick < 30 and cur_tick % 2 == 0)):
                 pkl = dnnlib.make_run_dir_path('network-snapshot-%06d.pkl' % (cur_nimg // 1000))
                 misc.save_pkl((G, D, Gs), pkl)
                 for r in fid_rhos:

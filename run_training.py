@@ -8,6 +8,7 @@ import argparse
 import copy
 import os
 import sys
+import json
 
 import dnnlib
 from dnnlib import EasyDict
@@ -46,13 +47,16 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(g_loss, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, rho, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks):
+def run(g_loss, g_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks):
+
+    if g_loss_kwargs != '': g_loss_kwargs = json.loads(g_loss_kwargs)
+    else: g_loss_kwargs = {}
     train     = EasyDict(run_func_name='training.training_loop.training_loop') # Options for training loop.
     G         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
     D         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
     G_opt     = EasyDict(beta1=0.0, beta2=0.99, epsilon=1e-8)                  # Options for generator optimizer.
     D_opt     = EasyDict(beta1=0.0, beta2=0.99, epsilon=1e-8)                  # Options for discriminator optimizer.
-    G_loss    = EasyDict(func_name='training.loss.' + g_loss) #G_logistic_ns_gsreg')      # Options for generator loss.
+    G_loss    = EasyDict(func_name='training.loss.' + g_loss, **g_loss_kwargs) #G_logistic_ns_gsreg')      # Options for generator loss.
     D_loss    = EasyDict(func_name='training.loss.D_logistic_r1')              # Options for discriminator loss.
     sched     = EasyDict()                                                     # Options for TrainingSchedule.
     grid      = EasyDict(size='8k', layout='random')                           # Options for setup_snapshot_image_grid().
@@ -90,9 +94,15 @@ def run(g_loss, dataset_train, dataset_eval, data_dir, result_dir, config_id, nu
     assert config_id in _valid_configs
     desc += '-' + config_id
 
+    desc += '-' + G_loss.func_name.split('_')[-1] 
+
+    for kw in g_loss_kwargs.keys():
+        desc += '-' + str(g_loss_kwargs[kw]) + str(kw)
+
     desc += '-%dimg' % (-1 if max_images==None else max_images)
 
-    desc += ('-rho%.1E' % rho).replace('+', '')
+    # TODO: JSON shit
+    #desc += ('-rho%.1E' % rho).replace('+', '')
 
     desc += ('-lr%.1E' % lrate_base).replace('+', '')
 
@@ -141,21 +151,8 @@ def run(g_loss, dataset_train, dataset_eval, data_dir, result_dir, config_id, nu
     if config_id in ['config-ss', 'config-ra']:
         G['train_scope'] = D['train_scope'] = '.*/adapt'
         train.resume_with_new_nets = True
-        G_loss = EasyDict(func_name='training.loss.G_logistic_ns_pathreg_adareg', rho=rho)
-        D_loss = EasyDict(func_name='training.loss.D_logistic_r1_adareg', rho=rho)
-
-
-        # TODO(me): Delete those that are crappy (d, b?)
-        #if config_id == 'config-a-g': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale'
-        #if config_id == 'config-a-b': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_shift'
         if config_id == 'config-ss': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
-        #if config_id == 'config-b-g': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_mp_residual_scale'
-        #if config_id == 'config-b-b': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_mp_residual_shift'
-        #if config_id == 'config-b-gb': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_mp_residual_scale_shift'
-        #if config_id == 'config-c-g': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_scale'
         if config_id == 'config-ra': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
-        #if config_id == 'config-c-gb': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_scale_shift'
-        #if config_id == 'config-d-gb': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_resshift'
 
 
 
@@ -218,6 +215,7 @@ def main():
     parser.add_argument('--dataset-eval', help='Evalulation dataset (defaults to training dataset)', default=None)
     parser.add_argument('--config', help='Training config (default: %(default)s)', default='config-f', required=True, dest='config_id', metavar='CONFIG')
     parser.add_argument('--g-loss', help='Import path to generator loss function.', default='G_logistic_ns_pathreg', required=False)
+    parser.add_argument('--g-loss-kwargs', help='JSON-formatted keyword arguments for generator loss function.', default='', required=False)
     parser.add_argument('--max-images', help='Maximum number of images to pull from dataset.', default=None, type=int)
     parser.add_argument('--num-gpus', help='Number of GPUs (default: %(default)s)', default=1, type=int, metavar='N')
     parser.add_argument('--total-kimg', help='Training length in thousands of images (default: %(default)s)', metavar='KIMG', default=25000, type=int)
@@ -225,7 +223,6 @@ def main():
     parser.add_argument('--mirror-augment', help='Mirror augment (default: %(default)s)', default=False, metavar='BOOL', type=_str_to_bool)
     parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='ppgs,fid50k', type=_parse_comma_sep)
     parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')
-    parser.add_argument('--rho', help='Adaptive regularization weight', default=0, type=float)
     parser.add_argument('--lrate-base', help='Base learning rate for G and D', default=0.002, type=float)
     parser.add_argument('--resume-kimg', help='kimg to resume from, affects scheduling', default=0, type=int)
     parser.add_argument('--img-ticks', help='How often to save images', default=1, type=int)

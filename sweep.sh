@@ -5,17 +5,34 @@ echo $(hostname)
 if [[ $(hostname) == "ca"* ]];
 then
 
+
+dir="pretrains"
+N=100000
+kimg=25000
+m=v
+loss="pr"
+
+#for tx in "mnist" "font"
+#do
+#qsub sgan_ca.qsub $N $kimg $m $loss $tx $tx $dir
+#done
+
 dir="loss_testing"
 N=25
-kimg=2000
-m=r
+kimg=1000
+m=t
 tx="tower25"
 ev="tower"
 
-for loss in "pr" "gs"
-do
+loss=div
+echo "qsub sgan_ca.qsub $N $kimg $m $loss $tx $ev $dir"
 qsub sgan_ca.qsub $N $kimg $m $loss $tx $ev $dir
-done
+
+#loss=gs
+#kw='{"epsilon":0.01}'
+#qsub sgan_ca.qsub $N $kimg $m $loss $tx $ev $dir $kw
+
+
 
 elif [[ $(hostname) == "nr"* ]];
 then

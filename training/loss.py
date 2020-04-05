@@ -215,8 +215,11 @@ def G_logistic_ns_pathreg_adareg(G, D, opt, training_set, minibatch_size, pl_min
 
 #----------------------------------------------------------------------------
 # Jacobian clamping 
-# TODO what value for epsilon, lambdas?
-def G_logistic_ns_pathreg_jc(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, epsilon=0.1, lambda_min=1.0, lambda_max=10.0):
+
+def norm(x):
+    return tf.sqrt(tf.reduce_sum(tf.square(x), axis=list(range(1, len(x.shape)))))
+
+def G_logistic_ns_pathreg_jc(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, epsilon=0.01, lambda_min=1.0, lambda_max=2.0):
     loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
 
     # Jacobian clamping regularization.
@@ -225,20 +228,46 @@ def G_logistic_ns_pathreg_jc(G, D, opt, training_set, minibatch_size, pl_minibat
         jc_minibatch = minibatch_size // pl_minibatch_shrink
         jc_latents1 = tf.random_normal([jc_minibatch] + G.input_shapes[0][1:])
         jc_noise = tf.random_normal([jc_minibatch] + G.input_shapes[0][1:])
-        jc_latents2 = epsilon * jc_noise / tf.norm(jc_noise) + jc_latents1
+        jc_latents2 = epsilon * jc_noise / tf.reshape(norm(jc_noise), (-1, 1)) + jc_latents1
         jc_labels = training_set.get_random_labels_tf(jc_minibatch)
         rho = np.array([1])
         fake_images_out1, fake_dlatents_out1 = G.get_output_for(jc_latents1, jc_labels, rho, is_training=True, return_dlatents=True)
         fake_images_out2, fake_dlatents_out2 = G.get_output_for(jc_latents2, jc_labels, rho, is_training=True, return_dlatents=True)
 
-        # TODO(me): Do this in w space (fake_dlatents_out) or z space (jc_latents)?
-        jc_norm = tf.norm(fake_images_out1 - fake_images_out2) / tf.norm(fake_dlatents_out1 - fake_dlatents_out2)
-        jc_norm = autosummary('Loss/jc_norm', jc_norm)
+        #jc_norm = tf.norm(fake_images_out1 - fake_images_out2) / tf.norm(fake_dlatents_out1 - fake_dlatents_out2)
+        jc_norm = norm(fake_images_out1 - fake_images_out2) / norm(fake_dlatents_out1 - fake_dlatents_out2)
         jc_reg = tf.square(lambda_max - tf.maximum(lambda_max, jc_norm))
         jc_reg += tf.square(lambda_min - tf.minimum(lambda_min, jc_norm))
-        jc_reg = autosummary('Loss/jc_reg', jc_reg)
-        # TODO(me): Removed so I can pick hyperparams.
         reg += jc_reg
+        jc_norm = autosummary('Loss/jc_norm', tf.reduce_mean(jc_norm))
+        jc_reg = autosummary('Loss/jc_reg', tf.reduce_mean(jc_reg))
+
+    return loss, reg
+
+
+
+
+#--------------------------------
+# Diversity regularization from https://arxiv.org/pdf/1901.09024.pdf
+def G_logistic_ns_pathreg_div(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, tau=0.01):
+    loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
+
+    # Jacobian clamping regularization.
+    with tf.name_scope('Diversity'):
+        # Evaluate the regularization term using a smaller minibatch to conserve memory.
+        div_minibatch = minibatch_size // pl_minibatch_shrink
+        div_latents1 = tf.random_normal([div_minibatch] + G.input_shapes[0][1:])
+        div_latents2 = tf.random_normal([div_minibatch] + G.input_shapes[0][1:])
+        div_labels = training_set.get_random_labels_tf(div_minibatch)
+        rho = np.array([1])
+        fake_images_out1, fake_dlatents_out1 = G.get_output_for(div_latents1, div_labels, rho, is_training=True, return_dlatents=True)
+        fake_images_out2, fake_dlatents_out2 = G.get_output_for(div_latents2, div_labels, rho, is_training=True, return_dlatents=True)
+
+        div_norm = norm(fake_images_out1 - fake_images_out2) / norm(fake_dlatents_out1 - fake_dlatents_out2)
+        div_reg = tf.minimum(div_norm, tau)
+        div_norm = autosummary('Loss/div_norm', tf.reduce_mean(div_norm))
+        div_reg = autosummary('Loss/div_reg', tf.reduce_mean(div_reg))
+        reg -= div_reg # maximize div_reg
 
     return loss, reg
 
@@ -255,7 +284,7 @@ def gini_index(x):
     gini = rmd / 2
     return gini
 
-def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, gs_minibatch_shrink=2, gs_decay=0.1, gs_weight=2.0):
+def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, gs_minibatch_shrink=2, gs_decay=0.1, gs_weight=3.0):
     _ = opt
     latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
     labels = training_set.get_random_labels_tf(minibatch_size)
@@ -287,7 +316,7 @@ def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, gs_minibatch_sh
         # Track exponential moving average of |J*y|.
         with tf.control_dependencies(None):
             gs_mean_var = tf.Variable(name='gs_mean', trainable=False, initial_value=0.0, dtype=tf.float32)
-        gs_mean = gs_mean_var + gs_decay * (tf.reduce_mean(gs_sparsity) - gs_mean_var) # If this is EMA where the fuck is the / N... Passed in from elsewhere??
+        gs_mean = gs_mean_var + gs_decay * (tf.reduce_mean(gs_sparsity) - gs_mean_var) # If this is EMA where is the / N... Passed in from elsewhere??
         gs_update = tf.assign(gs_mean_var, gs_mean)
 
         # Calculate (|J*y|-a)^2.

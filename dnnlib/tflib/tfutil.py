@@ -89,7 +89,7 @@ def _sanitize_tf_config(config_dict: dict = None) -> dict:
     cfg["env.TF_CPP_MIN_LOG_LEVEL"]         = "1"       # 0 = Print all available debug info from TensorFlow. 1 = Print warnings and errors, but disable debug info.
     cfg["graph_options.place_pruned_graph"] = True      # False = Check that all ops are available on the designated device. True = Skip the check for ops that are not used.
     cfg["gpu_options.allow_growth"]         = True      # False = Allocate all GPU memory at the beginning. True = Allocate only as much GPU memory as needed.
-
+    cfg["gpu_options.per_process_gpu_memory_fraction"]  = 0.8
     # Remove defaults for environment variables that are already set.
     for key in list(cfg):
         fields = key.split(".")
@@ -109,7 +109,7 @@ def init_tf(config_dict: dict = None) -> None:
     # Skip if already initialized.
     if tf.get_default_session() is not None:
         return
-
+    
     # Setup config dict and random seeds.
     cfg = _sanitize_tf_config(config_dict)
     np_random_seed = cfg["rnd.np_random_seed"]
@@ -127,7 +127,6 @@ def init_tf(config_dict: dict = None) -> None:
         if fields[0] == "env":
             assert len(fields) == 2
             os.environ[fields[1]] = str(value)
-
     # Create default TensorFlow session.
     create_session(cfg, force_as_default=True)
 
