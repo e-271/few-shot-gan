@@ -29,6 +29,7 @@ _valid_configs = [
     # Adaptive
     'config-ss',
     'config-ra',
+    'config-ae',
 
     #'config-a-gb',
     'config-b-g',
@@ -62,6 +63,7 @@ def run(g_loss, g_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir
     grid      = EasyDict(size='8k', layout='random')                           # Options for setup_snapshot_image_grid().
     sc        = dnnlib.SubmitConfig()                                          # Options for dnnlib.submit_run().
     tf_config = {'rnd.np_random_seed': 1000}                                   # Options for tflib.init_tf().
+    AE = AE_loss = AE_opt = None                                               # Default to no autoencoder. 
 
     train.data_dir = data_dir
     train.total_kimg = total_kimg
@@ -101,7 +103,6 @@ def run(g_loss, g_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir
 
     desc += '-%dimg' % (-1 if max_images==None else max_images)
 
-    # TODO: JSON shit
     #desc += ('-rho%.1E' % rho).replace('+', '')
 
     desc += ('-lr%.1E' % lrate_base).replace('+', '')
@@ -148,12 +149,17 @@ def run(g_loss, g_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir
         D = EasyDict(func_name='training.networks_stylegan.D_basic')
 
     # Config G: Replace mapping network with adaptive scaling parameters.
-    if config_id in ['config-ss', 'config-ra']:
+    if config_id in ['config-ss', 'config-ra', 'config-ae']:
         G['train_scope'] = D['train_scope'] = '.*/adapt'
         train.resume_with_new_nets = True
         if config_id == 'config-ss': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
         if config_id == 'config-ra': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
-
+        if config_id == 'config-ae': 
+            G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
+            AE = EasyDict(func_name='training.networks_stylegan2.AE')
+            AE_opt = EasyDict(beta1=0.0, beta2=0.99, epsilon=1e-8)
+            AE_loss = EasyDict(func_name='training.loss.AE_l2')
+            
 
 
     if gamma is not None:
@@ -162,7 +168,9 @@ def run(g_loss, g_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir
     sc.submit_target = dnnlib.SubmitTarget.LOCAL
     sc.local.do_not_copy_source_files = True
     kwargs = EasyDict(train)
-    kwargs.update(G_args=G, D_args=D, G_opt_args=G_opt, D_opt_args=D_opt, G_loss_args=G_loss, D_loss_args=D_loss)
+    kwargs.update(G_args=G, D_args=D, AE_args=AE,
+                  G_opt_args=G_opt, D_opt_args=D_opt, AE_opt_args=AE_opt,
+                  G_loss_args=G_loss, D_loss_args=D_loss, AE_loss_args=AE_loss)
     kwargs.update(dataset_args=dataset_args, dataset_args_eval=dataset_args_eval, sched_args=sched, grid_args=grid, metric_arg_list=metrics, tf_config=tf_config)
     kwargs.submit_config = copy.deepcopy(sc)
     kwargs.submit_config.run_dir_root = result_dir

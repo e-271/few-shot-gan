@@ -219,6 +219,7 @@ def G_logistic_ns_pathreg_adareg(G, D, opt, training_set, minibatch_size, pl_min
 def norm(x):
     return tf.sqrt(tf.reduce_sum(tf.square(x), axis=list(range(1, len(x.shape)))))
 
+# TODO(me): May need to input the noise images to make consistent between these.
 def G_logistic_ns_pathreg_jc(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, epsilon=0.01, lambda_min=1.0, lambda_max=2.0):
     loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
 
@@ -231,16 +232,16 @@ def G_logistic_ns_pathreg_jc(G, D, opt, training_set, minibatch_size, pl_minibat
         jc_latents2 = epsilon * jc_noise / tf.reshape(norm(jc_noise), (-1, 1)) + jc_latents1
         jc_labels = training_set.get_random_labels_tf(jc_minibatch)
         rho = np.array([1])
-        fake_images_out1, fake_dlatents_out1 = G.get_output_for(jc_latents1, jc_labels, rho, is_training=True, return_dlatents=True)
-        fake_images_out2, fake_dlatents_out2 = G.get_output_for(jc_latents2, jc_labels, rho, is_training=True, return_dlatents=True)
+        fake_images_out1, fake_dlatents_out1 = G.get_output_for(jc_latents1, jc_labels, rho, randomize_noise=False, style_mixing_prob=None, is_training=True, return_dlatents=True)
+        fake_images_out2, fake_dlatents_out2 = G.get_output_for(jc_latents2, jc_labels, rho, randomize_noise=False, style_mixing_prob=None, is_training=True, return_dlatents=True)
 
         #jc_norm = tf.norm(fake_images_out1 - fake_images_out2) / tf.norm(fake_dlatents_out1 - fake_dlatents_out2)
         jc_norm = norm(fake_images_out1 - fake_images_out2) / norm(fake_dlatents_out1 - fake_dlatents_out2)
         jc_reg = tf.square(lambda_max - tf.maximum(lambda_max, jc_norm))
         jc_reg += tf.square(lambda_min - tf.minimum(lambda_min, jc_norm))
         reg += jc_reg
-        jc_norm = autosummary('Loss/jc_norm', tf.reduce_mean(jc_norm))
-        jc_reg = autosummary('Loss/jc_reg', tf.reduce_mean(jc_reg))
+        jc_norm = autosummary('Loss/jc_norm', jc_norm)
+        jc_reg = autosummary('Loss/jc_reg', jc_reg)
 
     return loss, reg
 
@@ -265,11 +266,12 @@ def G_logistic_ns_pathreg_div(G, D, opt, training_set, minibatch_size, pl_miniba
 
         div_norm = norm(fake_images_out1 - fake_images_out2) / norm(fake_dlatents_out1 - fake_dlatents_out2)
         div_reg = tf.minimum(div_norm, tau)
-        div_norm = autosummary('Loss/div_norm', tf.reduce_mean(div_norm))
-        div_reg = autosummary('Loss/div_reg', tf.reduce_mean(div_reg))
+        div_norm = autosummary('Loss/div_norm', div_norm)
+        div_reg = autosummary('Loss/div_reg', div_reg)
         reg -= div_reg # maximize div_reg
 
     return loss, reg
+
 
 
 #----------------------------------------------------------------------------
@@ -283,6 +285,7 @@ def gini_index(x):
     rmd = md / am
     gini = rmd / 2
     return gini
+
 
 def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, gs_minibatch_shrink=2, gs_decay=0.1, gs_weight=3.0):
     _ = opt
@@ -308,7 +311,7 @@ def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, gs_minibatch_sh
         gs_noise = tf.random_normal(tf.shape(fake_images_out)) / np.sqrt(np.prod(G.output_shape[2:])) # N x 3 x 256 x 256
         gs_grads = tf.gradients(tf.reduce_sum(fake_images_out * gs_noise), [fake_dlatents_out])[0] # N x 14 x 512 (synthesis network output w from Nx512 z)?
 
-        # TODO Not to sure about just flattening this fker.
+        # TODO Not to sure about just flattening this guy.
         gs_sparsity = gini_index(tf.reshape(gs_grads, [-1])) #tf.sqrt(tf.reduce_mean(tf.reduce_sum(tf.square(gs_grads), axis=2), axis=1))
         gs_sparsity = autosummary('Loss/gs_sparsity', gs_sparsity)
 
@@ -328,7 +331,8 @@ def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, gs_minibatch_sh
 
     return loss, reg
 
-
+#----------------------------------------------------------------------------
+# Adaptive weight regulariation
 
 def D_logistic_r1_adareg(G, D, opt, training_set, minibatch_size, reals, labels, gamma=10.0, rho=0.0):
     loss, reg = D_logistic_r1(G, D, opt, training_set, minibatch_size, reals, labels, gamma)
@@ -339,5 +343,41 @@ def D_logistic_r1_adareg(G, D, opt, training_set, minibatch_size, reals, labels,
     ada_reg = autosummary('Loss/adareg/D', ada_reg)
     reg += ada_reg
     return loss, reg
+
+
+#----------------------------------------------------------------------------
+# Autoencoder loss
+
+def AE_l2(AE, G, opt, training_set, minibatch_size):
+    _ = opt
+    latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
+    labels = training_set.get_random_labels_tf(minibatch_size)
+    rho1 = np.array([1])
+    rho0 = np.array([0])
+    fake0 = G.get_output_for(latents, labels, rho0, randomize_noise=False, style_mixing_prob=None, is_training=True)
+    fake1 = G.get_output_for(latents, labels, rho1, randomize_noise=False, style_mixing_prob=None, is_training=True)
+    fake0_recon = AE.get_output_for(fake0, labels)
+    loss = tf.reduce_mean((fake0_recon - fake0)**2, axis=[1,2,3]) # MSE
+    loss = autosummary('Loss/enc_l2', loss)
+    return loss, fake1, fake0, fake0_recon
+
+
+def G_logistic_ns_pathreg_ae(G, D, AE, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, tau=0.01, ae_loss_weight=0):
+    loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
+    # Mutual information.
+    ae_loss = tf.zeros([minibatch_size, 1])
+    if False: #with tf.name_scope('MutualInfo'):
+        latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
+        labels = training_set.get_random_labels_tf(minibatch_size)
+        rho1 = np.array([1])
+        rho0 = np.array([0])
+        fake0 = G.get_output_for(latents, labels, rho0, randomize_noise=False, style_mixing_prob=None, is_training=True)
+        fake1 = G.get_output_for(latents, labels, rho1, randomize_noise=False, style_mixing_prob=None, is_training=True)
+        fake0_recon = AE.get_output_for(fake1, labels)
+        ae_loss = tf.reduce_mean((fake0_recon - fake0)**2, axis=[1,2,3]) # MSE
+        loss += ae_loss_weight * tf.reshape(ae_loss, [-1, 1])
+        ae_loss = autosummary('Loss/ae_loss', ae_loss)
+    return loss, reg, ae_loss
+
 
 #----------------------------------------------------------------------------

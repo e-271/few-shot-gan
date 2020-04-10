@@ -10,7 +10,7 @@ fi
 
 N=$1
 kimg=$2
-model=$3 # r, t, s, a
+model=$3 # r, t, s, a, m
 lr=0.002
 loss=$4 #'G_logistic_ns_gsreg'
 tx=$5
@@ -107,10 +107,16 @@ cfg="config-ss"
 elif [[ $model == "r" ]]
 then
 cfg="config-ra"
+elif [[ $model == "m" ]]
+then
+cfg="config-ae"
+loss="G_logistic_ns_pathreg_ae"
 fi
 
 
-python run_training.py \
+
+
+CUDA_VISIBLE_DEVICES=0 python run_training.py \
 --num-gpus=1 \
 --data-dir=$ddir \
 --config=$cfg \
@@ -123,6 +129,7 @@ python run_training.py \
 --resume-pkl=$pt \
 --resume-kimg=$i \
 --lrate-base=$lr \
---result-dir=$rdir/$tx
+--result-dir=$rdir/$tx \
+--metrics=fid1k
 
 echo "done."

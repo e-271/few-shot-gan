@@ -17,14 +17,14 @@ loss="pr"
 #qsub sgan_ca.qsub $N $kimg $m $loss $tx $tx $dir
 #done
 
-dir="loss_testing"
+dir="mi_testing"
 N=25
 kimg=1000
-m=t
-tx="tower25"
-ev="tower"
+m=m
+tx="mnist"
+ev="mnist"
 
-loss=div
+loss=pr
 echo "qsub sgan_ca.qsub $N $kimg $m $loss $tx $ev $dir"
 qsub sgan_ca.qsub $N $kimg $m $loss $tx $ev $dir
 

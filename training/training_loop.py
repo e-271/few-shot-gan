@@ -106,10 +106,13 @@ def training_schedule(
 def training_loop(
     G_args                  = {},       # Options for generator network.
     D_args                  = {},       # Options for discriminator network.
+    AE_args                 = None,       # Options for autoencoder network.
     G_opt_args              = {},       # Options for generator optimizer.
     D_opt_args              = {},       # Options for discriminator optimizer.
+    AE_opt_args             = None,      # Options for autoencoder optimizer.
     G_loss_args             = {},       # Options for generator loss.
     D_loss_args             = {},       # Options for discriminator loss.
+    AE_loss_args            = None,      # Options for autoencoder loss.
     dataset_args            = {},       # Options for dataset.load_dataset().
     dataset_args_eval       = {},       # Options for dataset.load_dataset().
     sched_args              = {},       # Options for train.TrainingSchedule.
@@ -145,6 +148,7 @@ def training_loop(
     tflib.init_tf(tf_config)
     num_gpus = dnnlib.submit_config.num_gpus
 
+
     # Load training set.
     training_set = dataset.load_dataset(data_dir=dnnlib.convert_path(data_dir), verbose=True, **dataset_args)
     eval_set = dataset.load_dataset(data_dir=dnnlib.convert_path(data_dir), verbose=True, **dataset_args_eval)
@@ -166,8 +170,10 @@ def training_loop(
                 D.copy_vars_from(rD); 
                 Gs.copy_vars_from(rGs)
             else: G = rG; D = rD; Gs = rGs
+        if AE_args is not None:
+            AE = tflib.Network('AE', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **AE_args)
+            AE.print_layers()
 
-    E = tflib.Network('E', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **D_args)
 
     # Print layers and generate initial image snapshot.
     G.print_layers(); D.print_layers()
@@ -202,6 +208,12 @@ def training_loop(
     D_opt = tflib.Optimizer(name='TrainD', **D_opt_args)
     G_reg_opt = tflib.Optimizer(name='RegG', share=G_opt, **G_opt_args)
     D_reg_opt = tflib.Optimizer(name='RegD', share=D_opt, **D_opt_args)
+    if AE_opt_args is not None:
+        AE_opt_args = dict(AE_opt_args)
+        AE_opt_args['minibatch_multiplier'] = minibatch_multiplier
+        AE_opt_args['learning_rate'] = lrate_in
+        AE_opt = tflib.Optimizer(name='TrainAE', **AE_opt_args)
+
 
     # Build training graph for each GPU.
     data_fetch_ops = []
@@ -211,6 +223,8 @@ def training_loop(
             # Create GPU-specific shadow copies of G and D.
             G_gpu = G if gpu == 0 else G.clone(G.name + '_shadow')
             D_gpu = D if gpu == 0 else D.clone(D.name + '_shadow')
+            if AE_args is not None:
+                AE_gpu = AE if gpu == 0 else AE.clone(AE.name + '_shadow')
 
             # Fetch training data via temporary variables.
             with tf.name_scope('DataFetch'):
@@ -232,9 +246,14 @@ def training_loop(
             if 'lod' in D_gpu.vars: lod_assign_ops += [tf.assign(D_gpu.vars['lod'], lod_in)]
             with tf.control_dependencies(lod_assign_ops):
                 with tf.name_scope('G_loss'):
-                    G_loss, G_reg = dnnlib.util.call_func_by_name(G=G_gpu, D=D_gpu, opt=G_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, **G_loss_args)
+                    if AE_args is not None: G_loss, G_reg, G_ae_loss = dnnlib.util.call_func_by_name(AE=AE_gpu, G=G_gpu, D=D_gpu, opt=G_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, **G_loss_args)
+                    else: G_loss, G_reg = dnnlib.util.call_func_by_name(G=G_gpu, D=D_gpu, opt=G_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, **G_loss_args)
                 with tf.name_scope('D_loss'):
                     D_loss, D_reg = dnnlib.util.call_func_by_name(G=G_gpu, D=D_gpu, opt=D_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, reals=reals_read, labels=labels_read, **D_loss_args)
+                if AE_args is not None:
+                    with tf.name_scope('AE_loss'):
+
+                        AE_loss, fo, ofo, rfo = dnnlib.util.call_func_by_name(AE=AE_gpu, G=G_gpu, opt=AE_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, **AE_loss_args)
 
             # Register gradients.
             if not lazy_regularization:
@@ -247,11 +266,14 @@ def training_loop(
 
             G_opt.register_gradients(tf.reduce_mean(G_loss), G_gpu.trainables)
             D_opt.register_gradients(tf.reduce_mean(D_loss), D_gpu.trainables)
+            if AE_args is not None:
+                AE_opt.register_gradients(tf.reduce_mean(AE_loss), AE_gpu.trainables)
 
     # Setup training ops.
     data_fetch_op = tf.group(*data_fetch_ops)
     G_train_op = G_opt.apply_updates()
     D_train_op = D_opt.apply_updates()
+    if AE_args is not None: AE_train_op = AE_opt.apply_updates()
     G_reg_op = G_reg_opt.apply_updates(allow_no_op=True)
     D_reg_op = D_reg_opt.apply_updates(allow_no_op=True)
     Gs_update_op = Gs.setup_as_moving_average_of(G, beta=Gs_beta)
@@ -280,6 +302,45 @@ def training_loop(
     tick_start_nimg = cur_nimg
     prev_lod = -1.0
     running_mb_counter = 0
+
+    if AE_args is not None:
+            pretrain_kimg = 0
+            pt_nimg = 0
+            print('Pretraining autoencoder for %d kimg...\n' % pretrain_kimg)
+            grid_fakes = Gs.run(grid_latents, grid_labels, rho, is_validation=True, minibatch_size=sched.minibatch_gpu)
+            misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('pt_fakes%06d.png'), drange=drange_net, grid_size=grid_size)
+            while pt_nimg < pretrain_kimg * 1000:
+                if dnnlib.RunContext.get().should_stop(): break
+
+                # Choose training parameters and configure training ops.
+                sched = training_schedule(cur_nimg=pt_nimg, training_set=training_set, **sched_args)
+                assert sched.minibatch_size % (sched.minibatch_gpu * num_gpus) == 0
+                training_set.configure(sched.minibatch_gpu, sched.lod)
+
+                # Run training ops.
+                feed_dict = {lod_in: sched.lod, lrate_in: sched.G_lrate, minibatch_size_in: sched.minibatch_size, minibatch_gpu_in: sched.minibatch_gpu}
+                for _repeat in range(minibatch_repeats):
+                    rounds = range(0, sched.minibatch_size, sched.minibatch_gpu * num_gpus)
+                    pt_nimg += sched.minibatch_size
+                    running_mb_counter += 1
+
+                    # Fast path without gradient accumulation.
+                    if len(rounds) == 1:
+                        tflib.run(AE_train_op, feed_dict)
+
+                    # Slow path with gradient accumulation.
+                    else:
+                        for _round in rounds:
+                            _ae_loss, _fo, _ofo, _rfo, _ = tflib.run([AE_loss, fo, ofo, rfo, AE_train_op], feed_dict)
+
+                # Perform maintenance tasks once per tick.
+                done = (pt_nimg >= pretrain_kimg * 1000)
+                if pt_nimg % 10 == 0:
+                    print('ae loss', _ae_loss)
+                    grid_recon = AE.run(grid_fakes, grid_labels, is_validation=True, minibatch_size=sched.minibatch_gpu)
+                    misc.save_image_grid(grid_recon, dnnlib.make_run_dir_path('pt_recon%06d.png' % (pt_nimg // 10)), drange=drange_net, grid_size=grid_size)
+
+
     while cur_nimg < total_kimg * 1000:
         if dnnlib.RunContext.get().should_stop(): break
 
@@ -293,9 +354,12 @@ def training_loop(
         prev_lod = sched.lod
 
         # Run training ops.
+        # TODO(me): This
         feed_dict = {lod_in: sched.lod, lrate_in: sched.G_lrate, minibatch_size_in: sched.minibatch_size, minibatch_gpu_in: sched.minibatch_gpu}
         for _repeat in range(minibatch_repeats):
             rounds = range(0, sched.minibatch_size, sched.minibatch_gpu * num_gpus)
+            ae_iter_mul = 10
+            ae_rounds = range(0, sched.minibatch_size, sched.minibatch_gpu * num_gpus * ae_iter_mul)
             run_G_reg = (lazy_regularization and running_mb_counter % G_reg_interval == 0)
             run_D_reg = (lazy_regularization and running_mb_counter % D_reg_interval == 0)
             cur_nimg += sched.minibatch_size
@@ -309,21 +373,37 @@ def training_loop(
                 tflib.run([D_train_op, Gs_update_op], feed_dict)
                 if run_D_reg:
                     tflib.run(D_reg_op, feed_dict)
+                if AE_args is not None: 
+                    for _round in ae_rounds: 
+                        tflib.run(AE_train_op, feed_dict)
 
             # Slow path with gradient accumulation.
             else:
                 for _round in rounds:
-                    tflib.run(G_train_op, feed_dict)
+                    _g_loss, _g_reg_loss, _ = tflib.run([G_loss, G_reg, G_train_op], feed_dict)
                 if run_G_reg:
                     for _round in rounds:
                         tflib.run(G_reg_op, feed_dict)
                 tflib.run(Gs_update_op, feed_dict)
                 for _round in rounds:
-                    tflib.run(data_fetch_op, feed_dict)
+                    tflib.run(data_fetch_op, feed_dict) # TODO why?
                     tflib.run(D_train_op, feed_dict)
                 if run_D_reg:
                     for _round in rounds:
                         tflib.run(D_reg_op, feed_dict)
+                if AE_args is not None:
+                    for _round in ae_rounds:
+                        _ae_loss, _fo, _ofo, _rfo, _ = tflib.run([AE_loss, fo, ofo, rfo, AE_train_op], feed_dict)
+
+
+        #latents = tf.zeros([minibatch_gpu_in] + G.input_shapes[0][1:]) * 0
+        #labels = training_set.get_random_labels_tf(minibatch_gpu_in) * 0
+
+        #i0, l0 = G.get_output_for(latents, labels, rho, return_dlatents=True, style_mixing_prob=None) #, truncation_psi_val=None, is_training=True, return_dlatents=True)
+        #i1, l1 = G.get_output_for(latents, labels, rho, return_dlatents=True, style_mixing_prob=None)# , truncation_psi_val=None, is_training=True, return_dlatents=True)
+        #_i0, _l0, _i1, _l1 = tflib.run([i0, l0, i1, l1], feed_dict)
+        #import pdb; pdb.set_trace()
+
 
         # Perform maintenance tasks once per tick.
         done = (cur_nimg >= total_kimg * 1000)
@@ -350,8 +430,19 @@ def training_loop(
 
             # Save snapshots.
             if image_snapshot_ticks is not None and (cur_tick % image_snapshot_ticks == 0 or done):
+                print('g loss', _g_loss)
+                print('g reg loss', _g_reg_loss)
                 grid_fakes = Gs.run(grid_latents, grid_labels, rho, is_validation=True, minibatch_size=sched.minibatch_gpu)
                 misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('fakes%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
+
+                if AE_args is not None:
+                    print('ae loss', _ae_loss)
+                    print('fake1', _fo[0,0,:10,:10])
+                    print('->rec0', _rfo[0,0,:10,:10])
+                    print('==fake0', _ofo[0,0,:10,:10])
+                    grid_recon = AE.run(grid_fakes, grid_labels, is_validation=True, minibatch_size=sched.minibatch_gpu)
+                    misc.save_image_grid(grid_recon, dnnlib.make_run_dir_path('recon%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
+
                 if plot_rho_terp:
                     terp_fakes = []
                     terp_rhos = np.linspace(0,1,grid_size[0])
@@ -375,7 +466,7 @@ def training_loop(
 
 
             if network_snapshot_ticks is not None and (cur_tick % network_snapshot_ticks == 0 or done 
-                                                   or (cur_tick < 30 and cur_tick % 2 == 0)):
+                                                   or (cur_tick < 30 and cur_tick % 30 == 0)):
                 pkl = dnnlib.make_run_dir_path('network-snapshot-%06d.pkl' % (cur_nimg // 1000))
                 misc.save_pkl((G, D, Gs), pkl)
                 for r in fid_rhos:
