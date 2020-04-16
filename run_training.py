@@ -48,17 +48,20 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(g_loss, g_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks):
+def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks):
 
     if g_loss_kwargs != '': g_loss_kwargs = json.loads(g_loss_kwargs)
     else: g_loss_kwargs = {}
+    if d_loss_kwargs != '': d_loss_kwargs = json.loads(d_loss_kwargs)
+    else: d_loss_kwargs = {}
+
     train     = EasyDict(run_func_name='training.training_loop.training_loop') # Options for training loop.
     G         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
     D         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
     G_opt     = EasyDict(beta1=0.0, beta2=0.99, epsilon=1e-8)                  # Options for generator optimizer.
     D_opt     = EasyDict(beta1=0.0, beta2=0.99, epsilon=1e-8)                  # Options for discriminator optimizer.
     G_loss    = EasyDict(func_name='training.loss.' + g_loss, **g_loss_kwargs) #G_logistic_ns_gsreg')      # Options for generator loss.
-    D_loss    = EasyDict(func_name='training.loss.D_logistic_r1')              # Options for discriminator loss.
+    D_loss    = EasyDict(func_name='training.loss.' + d_loss, **d_loss_kwargs) # Options for discriminator loss.
     sched     = EasyDict()                                                     # Options for TrainingSchedule.
     grid      = EasyDict(size='8k', layout='random')                           # Options for setup_snapshot_image_grid().
     sc        = dnnlib.SubmitConfig()                                          # Options for dnnlib.submit_run().
@@ -100,6 +103,13 @@ def run(g_loss, g_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir
 
     for kw in g_loss_kwargs.keys():
         desc += '-' + str(g_loss_kwargs[kw]) + str(kw)
+
+
+    desc += '-' + D_loss.func_name.split('_')[-1]
+
+    for kw in d_loss_kwargs.keys():
+        desc += '-' + str(d_loss_kwargs[kw]) + str(kw)
+
 
     desc += '-%dimg' % (-1 if max_images==None else max_images)
 
@@ -154,13 +164,13 @@ def run(g_loss, g_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir
         train.resume_with_new_nets = True
         if config_id == 'config-ss': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
         if config_id == 'config-ra': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
-        if config_id == 'config-ae': 
-            G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
+        if g_loss == 'G_logistic_ns_pathreg_ae': 
+            assert config_id == 'config-ra'
             AE = EasyDict(func_name='training.networks_stylegan2.AE')
             AE_opt = EasyDict(beta1=0.0, beta2=0.99, epsilon=1e-8)
             AE_loss = EasyDict(func_name='training.loss.AE_l2')
-            
-
+    if d_loss == 'D_logistic_r1_cos':
+        D['cos_output'] = True
 
     if gamma is not None:
         D_loss.gamma = gamma
@@ -168,6 +178,7 @@ def run(g_loss, g_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir
     sc.submit_target = dnnlib.SubmitTarget.LOCAL
     sc.local.do_not_copy_source_files = True
     kwargs = EasyDict(train)
+
     kwargs.update(G_args=G, D_args=D, AE_args=AE,
                   G_opt_args=G_opt, D_opt_args=D_opt, AE_opt_args=AE_opt,
                   G_loss_args=G_loss, D_loss_args=D_loss, AE_loss_args=AE_loss)
@@ -223,13 +234,15 @@ def main():
     parser.add_argument('--dataset-eval', help='Evalulation dataset (defaults to training dataset)', default=None)
     parser.add_argument('--config', help='Training config (default: %(default)s)', default='config-f', required=True, dest='config_id', metavar='CONFIG')
     parser.add_argument('--g-loss', help='Import path to generator loss function.', default='G_logistic_ns_pathreg', required=False)
+    parser.add_argument('--d-loss', help='Import path to generator loss function.', default='D_logistic_r1', required=False)
     parser.add_argument('--g-loss-kwargs', help='JSON-formatted keyword arguments for generator loss function.', default='', required=False)
+    parser.add_argument('--d-loss-kwargs', help='JSON-formatted keyword arguments for discriminator loss function.', default='', required=False)
     parser.add_argument('--max-images', help='Maximum number of images to pull from dataset.', default=None, type=int)
     parser.add_argument('--num-gpus', help='Number of GPUs (default: %(default)s)', default=1, type=int, metavar='N')
     parser.add_argument('--total-kimg', help='Training length in thousands of images (default: %(default)s)', metavar='KIMG', default=25000, type=int)
     parser.add_argument('--gamma', help='R1 regularization weight (default is config dependent)', default=None, type=float)
     parser.add_argument('--mirror-augment', help='Mirror augment (default: %(default)s)', default=False, metavar='BOOL', type=_str_to_bool)
-    parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='ppgs,fid50k', type=_parse_comma_sep)
+    parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid1k', type=_parse_comma_sep)
     parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')
     parser.add_argument('--lrate-base', help='Base learning rate for G and D', default=0.002, type=float)
     parser.add_argument('--resume-kimg', help='kimg to resume from, affects scheduling', default=0, type=int)

@@ -17,16 +17,22 @@ loss="pr"
 #qsub sgan_ca.qsub $N $kimg $m $loss $tx $tx $dir
 #done
 
-dir="mi_testing"
+dir="mi_cos"
 N=25
 kimg=1000
-m=m
-tx="mnist"
-ev="mnist"
+m=r
+tx="tower25"
+ev="tower"
+loss=ae
 
-loss=pr
-echo "qsub sgan_ca.qsub $N $kimg $m $loss $tx $ev $dir"
-qsub sgan_ca.qsub $N $kimg $m $loss $tx $ev $dir
+
+for dloss in x cos; do
+for kw in 0 1; do
+qsub sgan_ca.qsub $N $kimg $m $loss $dloss $tx $ev $dir $kw
+done
+done
+
+
 
 #loss=gs
 #kw='{"epsilon":0.01}'

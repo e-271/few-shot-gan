@@ -20,7 +20,7 @@ def G_logistic(G, D, opt, training_set, minibatch_size):
     latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
     labels = training_set.get_random_labels_tf(minibatch_size)
     fake_images_out = G.get_output_for(latents, labels, is_training=True)
-    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)
+    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)[:,0:1]
     loss = -tf.nn.softplus(fake_scores_out) # log(1-sigmoid(fake_scores_out)) # pylint: disable=invalid-unary-operand-type
     return loss, None
 
@@ -29,7 +29,7 @@ def G_logistic_ns(G, D, opt, training_set, minibatch_size):
     latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
     labels = training_set.get_random_labels_tf(minibatch_size)
     fake_images_out = G.get_output_for(latents, labels, is_training=True)
-    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)
+    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)[:,0:1]
     loss = tf.nn.softplus(-fake_scores_out) # -log(sigmoid(fake_scores_out))
     return loss, None
 
@@ -95,7 +95,7 @@ def G_wgan(G, D, opt, training_set, minibatch_size):
     latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
     labels = training_set.get_random_labels_tf(minibatch_size)
     fake_images_out = G.get_output_for(latents, labels, is_training=True)
-    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)
+    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)[:,0:1]
     loss = -fake_scores_out
     return loss, None
 
@@ -152,7 +152,7 @@ def G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_
     labels = training_set.get_random_labels_tf(minibatch_size)
     rho = np.array([1])
     fake_images_out, fake_dlatents_out = G.get_output_for(latents, labels, rho, is_training=True, return_dlatents=True)
-    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)
+    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)[:,0:1]
     loss = tf.nn.softplus(-fake_scores_out) # -log(sigmoid(fake_scores_out))
 
     # Path length regularization.
@@ -293,7 +293,7 @@ def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, gs_minibatch_sh
     labels = training_set.get_random_labels_tf(minibatch_size)
     rho = np.array([1])
     fake_images_out, fake_dlatents_out = G.get_output_for(latents, labels, rho, is_training=True, return_dlatents=True)
-    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)
+    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)[:,0:1]
     loss = tf.nn.softplus(-fake_scores_out) # -log(sigmoid(fake_scores_out))
 
     # Path length regularization.
@@ -344,6 +344,28 @@ def D_logistic_r1_adareg(G, D, opt, training_set, minibatch_size, reals, labels,
     reg += ada_reg
     return loss, reg
 
+#----------------------------------------------------------------------------
+# Cosine similarity loss
+def D_logistic_r1_cos(G, D, opt, training_set, minibatch_size, reals, labels, gamma=10.0):
+    _ = opt, training_set
+    latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
+    rho = np.array([1])
+    fake_images_out = G.get_output_for(latents, labels, rho, is_training=True)
+    real_scores_out = D.get_output_for(reals, labels, is_training=True)[:,1:2]
+    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)[:,0:1]
+    real_scores_out = autosummary('Loss/scores/real', real_scores_out)
+    fake_scores_out = autosummary('Loss/scores/fake', fake_scores_out)
+    loss = tf.nn.softplus(fake_scores_out) # -log(1-sigmoid(fake_scores_out))
+    loss += tf.nn.softplus(-real_scores_out) # -log(sigmoid(real_scores_out)) # pylint: disable=invalid-unary-operand-type
+
+    with tf.name_scope('GradientPenalty'):
+        real_grads = tf.gradients(tf.reduce_sum(real_scores_out), [reals])[0]
+        gradient_penalty = tf.reduce_sum(tf.square(real_grads), axis=[1,2,3])
+        gradient_penalty = autosummary('Loss/gradient_penalty', gradient_penalty)
+        reg = gradient_penalty * (gamma * 0.5)
+    return loss, reg
+
+
 
 #----------------------------------------------------------------------------
 # Autoencoder loss
@@ -356,13 +378,15 @@ def AE_l2(AE, G, opt, training_set, minibatch_size):
     rho0 = np.array([0])
     fake0 = G.get_output_for(latents, labels, rho0, randomize_noise=False, style_mixing_prob=None, is_training=True)
     fake1 = G.get_output_for(latents, labels, rho1, randomize_noise=False, style_mixing_prob=None, is_training=True)
-    fake0_recon = AE.get_output_for(fake0, labels)
+    fake0_recon = AE.get_output_for(fake1, labels)
     loss = tf.reduce_mean((fake0_recon - fake0)**2, axis=[1,2,3]) # MSE
     loss = autosummary('Loss/enc_l2', loss)
+    fake0 = autosummary('aeloss/fake0', fake0)
+    fake1 = autosummary('aeloss/fake1', fake1)
     return loss, fake1, fake0, fake0_recon
 
 
-def G_logistic_ns_pathreg_ae(G, D, AE, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, tau=0.01, ae_loss_weight=0):
+def G_logistic_ns_pathreg_ae(G, D, AE, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, tau=0.01, ae_loss_weight=0.0):
     loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
     # Mutual information.
     ae_loss = tf.zeros([minibatch_size, 1])
@@ -377,6 +401,8 @@ def G_logistic_ns_pathreg_ae(G, D, AE, opt, training_set, minibatch_size, pl_min
         ae_loss = tf.reduce_mean((fake0_recon - fake0)**2, axis=[1,2,3]) # MSE
         loss += ae_loss_weight * tf.reshape(ae_loss, [-1, 1])
         ae_loss = autosummary('Loss/ae_loss', ae_loss)
+        fake0 = autosummary('gloss/fake0', fake0)
+        fake1 = autosummary('gloss/fake1', fake1)
     return loss, reg, ae_loss
 
 

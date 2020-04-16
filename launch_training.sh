@@ -4,7 +4,7 @@
 # ./launch_training.sh N kimg model loss tx eval dir pt idx
 
 if (( $# < 7 )); then
-    echo "Usage: ./launch_training.sh N kimg model loss tx eval dir (kw_num) (pt) (idx)"
+    echo "Usage: ./launch_training.sh N kimg model gloss dloss tx eval dir (kw_num) (gpu)"
     exit 1
 fi
 
@@ -13,10 +13,12 @@ kimg=$2
 model=$3 # r, t, s, a, m
 lr=0.002
 loss=$4 #'G_logistic_ns_gsreg'
-tx=$5
-ev=$6
-dir=$7
-kwn=$8 #'{"epsilon":0.01,"lambda_min":1.5,"lambda_max":1.7}'  #$8
+dloss=$5
+tx=$6
+ev=$7
+dir=$8
+kwn=$9 
+gpu=$10
 #pt=$9
 #i=$10
 
@@ -51,7 +53,25 @@ fi
 elif [[ $loss == "div" ]];
 then
 loss='G_logistic_ns_pathreg_div'
+
+elif [[ $loss == "ae" ]];
+then
+loss="G_logistic_ns_pathreg_ae"
+if [[ $kwn == 0 ]]; then kw='{"ae_loss_weight":0.0}'
+elif [[ $kwn == 1 ]]; then kw='{"ae_loss_weight":1.0}'
+elif [[ $kwn == 2 ]]; then kw='{"ae_loss_weight":0.1}'
 fi
+
+fi
+
+if [[ $dloss == "cos" ]];
+then
+dloss="D_logistic_r1_cos"
+else
+dloss="D_logistic_r1"
+
+fi
+
 
 echo $loss
 
@@ -102,26 +122,28 @@ cfg="config-f"
 # Shift+scale baseline
 elif [[ $model == "s" ]]
 then
+lr=0.0003
 cfg="config-ss"
 # Residual adapters
 elif [[ $model == "r" ]]
 then
+lr=0.0003
 cfg="config-ra"
-elif [[ $model == "m" ]]
-then
-cfg="config-ae"
-loss="G_logistic_ns_pathreg_ae"
+
 fi
 
 
 
 
-CUDA_VISIBLE_DEVICES=0 python run_training.py \
+
+#CUDA_VISIBLE_DEVICES=$gpu \
+python run_training.py \
 --num-gpus=1 \
 --data-dir=$ddir \
 --config=$cfg \
 --g-loss=$loss \
 --g-loss-kwargs=$kw \
+--d-loss=$dloss \
 --dataset-train=$tx \
 --dataset-eval=$ev \
 --total-kimg=$kimg \

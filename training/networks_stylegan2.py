@@ -738,6 +738,7 @@ def D_stylegan2(
     dtype               = 'float32',    # Data type to use for activations and outputs.
     resample_kernel     = [1,3,3,1],    # Low-pass filter to apply when resampling activations. None = no filtering.
     adapt_func          = 'training.networks_stylegan2.apply_identity', # Scale func for modulated conv2d.
+    cos_output          = False,         # Use cosine similarity to class weight vectors.
     **_kwargs):                         # Ignore unrecognized keyword args.
 
     resolution_log2 = int(np.log2(resolution))
@@ -794,12 +795,25 @@ def D_stylegan2(
         with tf.variable_scope('Dense0'):
             x = apply_bias_act(dense_layer(x, fmaps=nf(0)), act=act)
 
-    # Output layer with label conditioning from "Which Training Methods for GANs do actually Converge?"
-    with tf.variable_scope('Output'):
-        x = apply_bias_act(dense_layer(x, fmaps=max(labels_in.shape[1], 1)))
-        if labels_in.shape[1] > 0:
-            x = tf.reduce_sum(x * labels_in, axis=1, keepdims=True)
-    scores_out = x
+    if cos_output:
+        # TODO: assumes no labels
+        with tf.variable_scope('adapt'):
+            wr = get_weight([x.shape[1].value], use_wscale=False, weight_var='class_real')
+            wf = get_weight([x.shape[1].value], use_wscale=False, weight_var='class_fake')
+            wr = tf.nn.l2_normalize(wr)
+            wf = tf.nn.l2_normalize(wf)
+            x = tf.nn.l2_normalize(x, 1)
+            real_sim = tf.reshape(tf.reduce_sum(tf.multiply(wr, x),1), [-1, 1])
+            fake_sim = tf.reshape(tf.reduce_sum(tf.multiply(wf, x),1), [-1, 1])
+            scores_out = tf.concat([fake_sim, real_sim], axis=1, name='class_sim')
+
+    else:
+        # Output layer with label conditioning from "Which Training Methods for GANs do actually Converge?"
+        with tf.variable_scope('Output'):
+            x = apply_bias_act(dense_layer(x, fmaps=max(labels_in.shape[1], 1)))
+            if labels_in.shape[1] > 0:
+                x = tf.reduce_sum(x * labels_in, axis=1, keepdims=True)
+        scores_out = x
 
     # Output.
     assert scores_out.dtype == tf.as_dtype(dtype)
@@ -807,231 +821,7 @@ def D_stylegan2(
     return scores_out
 
 #----------------------------------------------------------------------------
-# Autoencoder
-
-
-#----------------------------------------------------------------------------
-# StyleGAN2 synthesis network (Figure 7).
-# Implements skip connections and residual nets (Figure 7), but no progressive growing.
-# Used in configs E-F (Table 1).
-
-# Changed to normal conv
-def Dec(
-    dlatents_in,                        # Input: Encoder latents [minibatch, num_layers, dlatent_size].
-    dlatent_size        = 512,          # Disentangled latent (W) dimensionality.
-    num_channels        = 3,            # Number of output color channels.
-    resolution          = 1024,         # Output resolution.
-    fmap_base           = 16 << 10,     # Overall multiplier for the number of feature maps.
-    fmap_decay          = 1.0,          # log2 feature map reduction when doubling the resolution.
-    fmap_min            = 1,            # Minimum number of feature maps in any layer.
-    fmap_max            = 512,          # Maximum number of feature maps in any layer.
-    architecture        = 'orig',       # Architecture: 'orig', 'skip', 'resnet'.
-    nonlinearity        = 'lrelu',      # Activation function: 'relu', 'lrelu', etc.
-    dtype               = 'float32',    # Data type to use for activations and outputs.
-    resample_kernel     = [1,3,3,1],    # Low-pass filter to apply when resampling activations. None = no filtering.
-    **_kwargs):                         # Ignore unrecognized keyword args.
-
-    resolution_log2 = int(np.log2(resolution))
-    assert resolution == 2**resolution_log2 and resolution >= 4
-    def nf(stage): return np.clip(int(fmap_base / (2.0 ** (stage * fmap_decay))), fmap_min, fmap_max)
-    assert architecture in ['orig', 'skip', 'resnet']
-    act = nonlinearity
-    num_layers = resolution_log2 * 2 - 2
-    images_out = None
-
-    # Primary inputs.
-    dlatents_in.set_shape([None, dlatent_size])
-    dlatents_in = tf.cast(dlatents_in, dtype)
-
-    # Single convolution layer with all the bells and whistles.
-    def layer(x, layer_idx, fmaps, kernel, up=False):
-        x = conv2d_layer(x, fmaps=fmaps, kernel=kernel, up=up, resample_kernel=resample_kernel)
-        return apply_bias_act(x, act=act)
-
-    # Building blocks for main layers.
-    def block(x, res): # res = 3..resolution_log2
-        t = x
-        with tf.variable_scope('Conv0_up'):
-            x = layer(x, layer_idx=res*2-5, fmaps=nf(res-1), kernel=3, up=True)
-        with tf.variable_scope('Conv1'):
-            x = layer(x, layer_idx=res*2-4, fmaps=nf(res-1), kernel=3)
-        if architecture == 'resnet':
-            with tf.variable_scope('Skip'):
-                t = conv2d_layer(t, fmaps=nf(res-1), kernel=1, up=True, resample_kernel=resample_kernel)
-                x = (x + t) * (1 / np.sqrt(2))
-        return x
-    def upsample(y):
-        with tf.variable_scope('Upsample'):
-            return upsample_2d(y, k=resample_kernel)
-    def torgb(x, y, res): # res = 2..resolution_log2
-        with tf.variable_scope('ToRGB'):
-            t = apply_bias_act(conv2d_layer(x, fmaps=num_channels, kernel=1))
-            return t if y is None else y + t
-
-    # Early layers.
-    y = None
-    with tf.variable_scope('4x4'):
-        with tf.variable_scope('Const'):
-            x = tf.get_variable('const', shape=[1, nf(1), 4, 4], initializer=tf.initializers.random_normal())
-            x = tf.tile(tf.cast(x, dtype), [tf.shape(dlatents_in)[0], 1, 1, 1])
-        with tf.variable_scope('Conv'):
-            x = layer(x, layer_idx=0, fmaps=nf(1), kernel=3)
-        if architecture == 'skip':
-            y = torgb(x, y, 2)
-
-    # Main layers.
-    for res in range(3, resolution_log2 + 1):
-        with tf.variable_scope('%dx%d' % (2**res, 2**res)):
-            x = block(x, res)
-            if architecture == 'skip':
-                y = upsample(y)
-            if architecture == 'skip' or res == resolution_log2:
-                y = torgb(x, y, res)
-    images_out = y
-
-    assert images_out.dtype == tf.as_dtype(dtype)
-    return tf.identity(images_out, name='images_out')
-
-# Should be fine
-def Enc(
-    images_in,                          # First input: Images [minibatch, channel, height, width].
-    labels_in,                          # Second input: Labels [minibatch, label_size].
-    num_channels        = 3,            # Number of input color channels. Overridden based on dataset.
-    resolution          = 1024,         # Input resolution. Overridden based on dataset.
-    label_size          = 0,            # Dimensionality of the labels, 0 if no labels. Overridden based on dataset.
-    fmap_base           = 16 << 10,     # Overall multiplier for the number of feature maps.
-    fmap_decay          = 1.0,          # log2 feature map reduction when doubling the resolution.
-    fmap_min            = 1,            # Minimum number of feature maps in any layer.
-    fmap_max            = 512,          # Maximum number of feature maps in any layer.
-    architecture        = 'orig',     # Architecture: 'orig', 'skip', 'resnet'.
-    nonlinearity        = 'lrelu',      # Activation function: 'relu', 'lrelu', etc.
-    dtype               = 'float32',    # Data type to use for activations and outputs.
-    **_kwargs):                         # Ignore unrecognized keyword args.
-
-    resolution_log2 = int(np.log2(resolution))
-    assert resolution == 2**resolution_log2 and resolution >= 4
-    def nf(stage): return np.clip(int(fmap_base / (2.0 ** (stage * fmap_decay))), fmap_min, fmap_max)
-    assert architecture in ['orig', 'skip', 'resnet']
-    act = nonlinearity
-
-    images_in.set_shape([None, num_channels, resolution, resolution])
-    labels_in.set_shape([None, label_size])
-    images_in = tf.cast(images_in, dtype)
-    labels_in = tf.cast(labels_in, dtype)
-
-    # Building blocks for main layers.
-    def fromrgb(x, y, res): # res = 2..resolution_log2
-        with tf.variable_scope('FromRGB'):
-            t = apply_bias_act(conv2d_layer(y, fmaps=nf(res-1), kernel=1), act=act)
-            return t if x is None else x + t
-    def block(x, res): # res = 2..resolution_log2
-        t = x
-        with tf.variable_scope('Conv0'):
-            x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-1), kernel=3), act=act)
-        with tf.variable_scope('Conv1_down'):
-            x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-2), kernel=3, down=True), act=act)
-        if architecture == 'resnet':
-            with tf.variable_scope('Skip'):
-                t = conv2d_layer(t, fmaps=nf(res-2), kernel=1, down=True, resample_kernel=resample_kernel)
-                x = (x + t) * (1 / np.sqrt(2))
-        return x
-    def downsample(y):
-        with tf.variable_scope('Downsample'):
-            return downsample_2d(y, k=resample_kernel)
-
-    # Main layers.
-    x = None
-    y = images_in
-    features = []
-    for res in range(resolution_log2, 2, -1):
-        with tf.variable_scope('%dx%d' % (2**res, 2**res)):
-            if architecture == 'skip' or res == resolution_log2:
-                x = fromrgb(x, y, res)
-            x = block(x, res)
-            features.append(x)
-            if architecture == 'skip':
-                y = downsample(y)
-
-    # Final layers.
-    with tf.variable_scope('4x4'):
-        if architecture == 'skip':
-            x = fromrgb(x, y, 2)
-        with tf.variable_scope('Conv'):
-            x = apply_bias_act(conv2d_layer(x, fmaps=nf(1), kernel=3), act=act)
-        with tf.variable_scope('Dense0'):
-            x = apply_bias_act(dense_layer(x, fmaps=nf(0)), act=act)
-    latent_out = x
-    latent_out = tf.identity(latent_out, name='latent_out')
-    return latent_out
-
-
-#def AE(
-#    images_in,                                          # First input: Latent vectors (Z) [minibatch, latent_size].
-#    labels_in,                                          # Second input: Conditioning labels [minibatch, label_size].
-    #num_channels        = 3,            # Number of input color channels. Overridden based on dataset.
-    #resolution          = 1024,
-    #label_size          = 0,            # Dimensionality of the labels, 0 if no labels. Overridden based on dataset.
-#    return_dlatents         = False,                    # Return dlatents in addition to the images?
-#    is_template_graph       = False,                    # True = template graph constructed by the Network class, False = actual evaluation.
-#    components              = dnnlib.EasyDict(),        # Container for sub-networks. Retained between calls.
-#    enc_func                = 'Enc',                    # Build func name for the encoder network.
-#    dec_func                = 'Dec',                    # Build func name for the decoder network.
-#    dtype                   = 'float32',    # Data type to use for activations and outputs.
-#    **kwargs):                                          # Arguments for sub-networks (mapping and synthesis).
-
-    #images_in.set_shape([None, num_channels, resolution, resolution])
-    #labels_in.set_shape([None, label_size])
-    #images_in = tf.cast(images_in, dtype)
-    #labels_in = tf.cast(labels_in, dtype)
-
-    #images_out = conv2d_layer(images_in, 3, 3)
-
-
-
-def AE(
-    images_in,                                          # First input: Latent vectors (Z) [minibatch, latent_size].
-    labels_in,                                          # Second input: Conditioning labels [minibatch, label_size].
-    return_dlatents         = False,                    # Return dlatents in addition to the images?
-    is_template_graph       = False,                    # True = template graph constructed by the Network class, False = actual evaluation.
-    components              = dnnlib.EasyDict(),        # Container for sub-networks. Retained between calls.
-    enc_func                = 'Enc',                    # Build func name for the encoder network.
-    dec_func                = 'Dec',                    # Build func name for the decoder network.
-    dtype                   = 'float32',    # Data type to use for activations and outputs.
-    **kwargs):                                          # Arguments for sub-networks (mapping and synthesis).
-
-    # Validate arguments.    
-    assert isinstance(components, dnnlib.EasyDict)
-
-
-    # Setup components.
-    if 'encoder' not in components:
-        components.encoder = tflib.Network('Encoder', func_name=globals()[enc_func], **kwargs)
-    num_layers = components.encoder.input_shape[1]
-    dlatent_size = components.encoder.input_shape[2]
-    if 'decoder' not in components:
-        components.decoder = tflib.Network('Decoder', func_name=globals()[dec_func], dlatent_broadcast=num_layers, **kwargs)
-
-    # Setup variables.
-    lod_in = tf.get_variable('lod', initializer=np.float32(0), trainable=False)
-    dlatent_avg = tf.get_variable('dlatent_avg', shape=[dlatent_size], initializer=tf.initializers.zeros(), trainable=False)
-
-    # Evaluate encoder network.
-    dlatents = components.encoder.get_output_for(images_in, labels_in, **kwargs)
-    dlatents = tf.cast(dlatents, tf.float32)
-
-    # Evaluate decoder network.
-    # TODO(me): probably need something like this for both enc/dec if we do progressive training...
-    #deps = []
-    #if 'lod' in components.encoder.vars:
-    #    deps.append(tf.assign(components.encoder.vars['lod'], lod_in))
-    #with tf.control_dependencies(deps):
-    images_out = components.decoder.get_output_for(dlatents, force_clean_graph=is_template_graph, **kwargs)
-
-    # Return requested outputs.
-    images_out = tf.identity(images_out, name='images_out')
-    if return_dlatents:
-        return images_out, dlatents
-    return images_out
+# Image autoencoder
 
 
 def AE(
@@ -1057,10 +847,6 @@ def AE(
     labels_in = tf.cast(labels_in, dtype)
     act=nonlinearity
     x = images_in
-    #with tf.variable_scope('down1'): x = apply_bias_act(conv2d_layer(x, fmaps=512, kernel=3, down=True), act=act)
-    #with tf.variable_scope('up1'): x = apply_bias_act(conv2d_layer(x, fmaps=512, kernel=3, up=True), act=act)
-    #with tf.variable_scope('rgb'): x = apply_bias_act(conv2d_layer(x, fmaps=num_channels, kernel=1))
-    #return x
 
     resolution_log2 = int(np.log2(resolution))
     assert resolution == 2**resolution_log2 and resolution >= 4
@@ -1078,21 +864,14 @@ def AE(
 
     features = []
     for res in range(resolution_log2, 2, -1):
-        with tf.variable_scope('%dx%d' % (2**res, 2**res)):
+        with tf.variable_scope('Enc/%dx%d' % (2**res, 2**res)):
             x = down_layer(x, res)
             features.append(x)
 
     for res in range(3, resolution_log2 + 1):
-        with tf.variable_scope('%dx%d' % (2**res, 2**res)):
+        with tf.variable_scope('Dec/%dx%d' % (2**res, 2**res)):
             x = up_layer(x, res)
     x = apply_bias_act(conv2d_layer(x, fmaps=num_channels, kernel=1))
 
     return x
-
-
-    #for layer in range(2):
-    #    with tf.variable_scope('layer%d' % layer):
-    #         images_out = apply_bias_act(conv2d_layer(images_in, fmaps=32, kernel=3), act=nonlinearity)
-    # with tf.variable_scope('toRGB'):
-    #     images_out = apply_bias_act(conv2d_layer(images_in, fmaps=3, kernel=1)) # torgb - tanh activation
 

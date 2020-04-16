@@ -304,7 +304,7 @@ def training_loop(
     running_mb_counter = 0
 
     if AE_args is not None:
-            pretrain_kimg = 0
+            pretrain_kimg = 10
             pt_nimg = 0
             print('Pretraining autoencoder for %d kimg...\n' % pretrain_kimg)
             grid_fakes = Gs.run(grid_latents, grid_labels, rho, is_validation=True, minibatch_size=sched.minibatch_gpu)
@@ -437,9 +437,14 @@ def training_loop(
 
                 if AE_args is not None:
                     print('ae loss', _ae_loss)
-                    print('fake1', _fo[0,0,:10,:10])
-                    print('->rec0', _rfo[0,0,:10,:10])
-                    print('==fake0', _ofo[0,0,:10,:10])
+                    #print('fake1', _fo[0,0,:10,:10])
+                    #print('->rec0', _rfo[0,0,:10,:10])
+                    #print('==fake0', _ofo[0,0,:10,:10])
+                    #from PIL import Image
+                    #Image.fromarray(np.uint8((1+_ofo[0]) * 127.5).T).save(dnnlib.make_run_dir_path('fake0.png'))
+                    #Image.fromarray(np.uint8((1+_fo[0]) * 127.5).T).save(dnnlib.make_run_dir_path('fake1.png'))
+                    #Image.fromarray(np.uint8((1+_rfo[0]) * 127.5).T).save(dnnlib.make_run_dir_path('rec0.png'))
+
                     grid_recon = AE.run(grid_fakes, grid_labels, is_validation=True, minibatch_size=sched.minibatch_gpu)
                     misc.save_image_grid(grid_recon, dnnlib.make_run_dir_path('recon%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
 
