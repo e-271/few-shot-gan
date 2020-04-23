@@ -29,7 +29,9 @@ _valid_configs = [
     # Adaptive
     'config-ss',
     'config-ra',
-    'config-ae',
+    'config-rr', # Residual ReLU Adapter
+    'config-ar', # AdaIN Residual Adapter
+
 
     #'config-a-gb',
     'config-b-g',
@@ -46,9 +48,15 @@ _valid_configs = [
     'config-e-Gskip-Dorig',   'config-e-Gskip-Dresnet',   'config-e-Gskip-Dskip',
 ]
 
+
+_valid_mi_configs = [
+    'config-ae', # Autoencoder on G output
+    'config-ft', # Reconstruct features at each block of G and D
+]
+
 #----------------------------------------------------------------------------
 
-def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks):
+def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, mi_config, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks):
 
     if g_loss_kwargs != '': g_loss_kwargs = json.loads(g_loss_kwargs)
     else: g_loss_kwargs = {}
@@ -66,7 +74,7 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
     grid      = EasyDict(size='8k', layout='random')                           # Options for setup_snapshot_image_grid().
     sc        = dnnlib.SubmitConfig()                                          # Options for dnnlib.submit_run().
     tf_config = {'rnd.np_random_seed': 1000}                                   # Options for tflib.init_tf().
-    AE = AE_loss = AE_opt = None                                               # Default to no autoencoder. 
+    MI = MI_loss = MI_opt = None                                               # Default to no autoencoder. 
 
     train.data_dir = data_dir
     train.total_kimg = total_kimg
@@ -159,18 +167,31 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
         D = EasyDict(func_name='training.networks_stylegan.D_basic')
 
     # Config G: Replace mapping network with adaptive scaling parameters.
-    if config_id in ['config-ss', 'config-ra', 'config-ae']:
+    if config_id in ['config-ss', 'config-ra', 'config-rr', 'config-ar']:
         G['train_scope'] = D['train_scope'] = '.*/adapt'
         train.resume_with_new_nets = True
         if config_id == 'config-ss': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
         if config_id == 'config-ra': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
-        if g_loss == 'G_logistic_ns_pathreg_ae': 
-            assert config_id == 'config-ra'
-            AE = EasyDict(func_name='training.networks_stylegan2.AE')
-            AE_opt = EasyDict(beta1=0.0, beta2=0.99, epsilon=1e-8)
-            AE_loss = EasyDict(func_name='training.loss.AE_l2')
+        if config_id == 'config-rr': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift_relu'
     if d_loss == 'D_logistic_r1_cos':
         D['cos_output'] = True
+
+    if mi_config == 'config-ae':
+        assert config_id == 'config-ra'
+        assert g_loss =='G_logistic_ns_pathreg_ae'
+        MI = EasyDict(func_name='training.networks_stylegan2.AE')
+        MI_opt = EasyDict(beta1=0.0, beta2=0.99, epsilon=1e-8)
+        MI_loss = EasyDict(func_name='training.loss.AE_l2')
+
+
+    elif mi_config == 'config-ft':
+        assert config_id == 'config-ra'
+        assert g_loss =='G_logistic_ns_pathreg_ft'
+        assert d_loss =='D_logistic_r1_ft'
+        
+        MI = EasyDict(func_name='training.networks_stylegan2.FeatAE')
+        MI_opt = EasyDict(beta1=0.0, beta2=0.99, epsilon=1e-8)
+        MI_loss = EasyDict(func_name='training.loss.FeatAE_l2')
 
     if gamma is not None:
         D_loss.gamma = gamma
@@ -179,9 +200,9 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
     sc.local.do_not_copy_source_files = True
     kwargs = EasyDict(train)
 
-    kwargs.update(G_args=G, D_args=D, AE_args=AE,
-                  G_opt_args=G_opt, D_opt_args=D_opt, AE_opt_args=AE_opt,
-                  G_loss_args=G_loss, D_loss_args=D_loss, AE_loss_args=AE_loss)
+    kwargs.update(G_args=G, D_args=D, MI_args=MI,
+                  G_opt_args=G_opt, D_opt_args=D_opt, MI_opt_args=MI_opt,
+                  G_loss_args=G_loss, D_loss_args=D_loss, MI_loss_args=MI_loss)
     kwargs.update(dataset_args=dataset_args, dataset_args_eval=dataset_args_eval, sched_args=sched, grid_args=grid, metric_arg_list=metrics, tf_config=tf_config)
     kwargs.submit_config = copy.deepcopy(sc)
     kwargs.submit_config.run_dir_root = result_dir
@@ -237,6 +258,7 @@ def main():
     parser.add_argument('--d-loss', help='Import path to generator loss function.', default='D_logistic_r1', required=False)
     parser.add_argument('--g-loss-kwargs', help='JSON-formatted keyword arguments for generator loss function.', default='', required=False)
     parser.add_argument('--d-loss-kwargs', help='JSON-formatted keyword arguments for discriminator loss function.', default='', required=False)
+    parser.add_argument('--mi-config', help='Configuration for mutual info loss.', default='', required=False)
     parser.add_argument('--max-images', help='Maximum number of images to pull from dataset.', default=None, type=int)
     parser.add_argument('--num-gpus', help='Number of GPUs (default: %(default)s)', default=1, type=int, metavar='N')
     parser.add_argument('--total-kimg', help='Training length in thousands of images (default: %(default)s)', metavar='KIMG', default=25000, type=int)

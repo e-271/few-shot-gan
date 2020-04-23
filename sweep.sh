@@ -21,8 +21,8 @@ dir="mi_cos"
 N=25
 kimg=1000
 m=r
-tx="tower25"
-ev="tower"
+tx="kannada4K"
+ev="kannada4K"
 loss=ae
 
 

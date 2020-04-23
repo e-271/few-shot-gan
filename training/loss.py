@@ -53,9 +53,9 @@ def D_logistic_r1(G, D, opt, training_set, minibatch_size, reals, labels, gamma=
     _ = opt, training_set
     latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
     rho = np.array([1])
-    fake_images_out = G.get_output_for(latents, labels, rho, is_training=True)
-    real_scores_out = D.get_output_for(reals, labels, is_training=True)
-    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)
+    fake_images_out = G.get_output_for(latents, labels, rho, is_training=True)[0]
+    real_scores_out = D.get_output_for(reals, labels, is_training=True)[0]
+    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)[0]
     real_scores_out = autosummary('Loss/scores/real', real_scores_out)
     fake_scores_out = autosummary('Loss/scores/fake', fake_scores_out)
     loss = tf.nn.softplus(fake_scores_out) # -log(1-sigmoid(fake_scores_out))
@@ -151,8 +151,10 @@ def G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_
     latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
     labels = training_set.get_random_labels_tf(minibatch_size)
     rho = np.array([1])
-    fake_images_out, fake_dlatents_out = G.get_output_for(latents, labels, rho, is_training=True, return_dlatents=True)
-    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)[:,0:1]
+    fake = G.get_output_for(latents, labels, rho, is_training=True, return_dlatents=True)
+    fake_images_out, fake_dlatents_out = fake[0], fake[-1]
+    # fake_images_out, fake_dlatents_out = G.get_output_for(latents, labels, rho, is_training=True, return_dlatents=True)
+    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)[0][:,0:1]
     loss = tf.nn.softplus(-fake_scores_out) # -log(sigmoid(fake_scores_out))
 
     # Path length regularization.
@@ -163,7 +165,9 @@ def G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_
             pl_minibatch = minibatch_size // pl_minibatch_shrink
             pl_latents = tf.random_normal([pl_minibatch] + G.input_shapes[0][1:])
             pl_labels = training_set.get_random_labels_tf(pl_minibatch)
-            fake_images_out, fake_dlatents_out = G.get_output_for(pl_latents, pl_labels, rho, is_training=True, return_dlatents=True)
+            fake = G.get_output_for(pl_latents, pl_labels, rho, is_training=True, return_dlatents=True)
+            fake_images_out, fake_dlatents_out = fake[0], fake[-1]
+            # fake_images_out, fake_dlatents_out = G.get_output_for(pl_latents, pl_labels, rho, is_training=True, return_dlatents=True)
 
         # Compute |J*y|.
         pl_noise = tf.random_normal(tf.shape(fake_images_out)) / np.sqrt(np.prod(G.output_shape[2:])) # N x 3 x 256 x 256
@@ -370,40 +374,88 @@ def D_logistic_r1_cos(G, D, opt, training_set, minibatch_size, reals, labels, ga
 #----------------------------------------------------------------------------
 # Autoencoder loss
 
-def AE_l2(AE, G, opt, training_set, minibatch_size):
+def AE_l2(MI, G, opt, training_set, minibatch_size):
     _ = opt
     latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
     labels = training_set.get_random_labels_tf(minibatch_size)
     rho1 = np.array([1])
     rho0 = np.array([0])
-    fake0 = G.get_output_for(latents, labels, rho0, randomize_noise=False, style_mixing_prob=None, is_training=True)
-    fake1 = G.get_output_for(latents, labels, rho1, randomize_noise=False, style_mixing_prob=None, is_training=True)
-    fake0_recon = AE.get_output_for(fake1, labels)
+    fake0 = G.get_output_for(latents, labels, rho0, randomize_noise=False, style_mixing_prob=None, is_training=True)[0]
+    fake1 = G.get_output_for(latents, labels, rho1, randomize_noise=False, style_mixing_prob=None, is_training=True)[0]
+    fake0_recon = MI.get_output_for(fake1, labels)
     loss = tf.reduce_mean((fake0_recon - fake0)**2, axis=[1,2,3]) # MSE
     loss = autosummary('Loss/enc_l2', loss)
-    fake0 = autosummary('aeloss/fake0', fake0)
-    fake1 = autosummary('aeloss/fake1', fake1)
     return loss, fake1, fake0, fake0_recon
 
 
-def G_logistic_ns_pathreg_ae(G, D, AE, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, tau=0.01, ae_loss_weight=0.0):
+# TODO HOLLLLLD UP
+# Check on this, see if it has the artifact with "If false".
+def G_logistic_ns_pathreg_ae(G, D, MI, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, tau=0.01, ae_loss_weight=0.0):
     loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
     # Mutual information.
     ae_loss = tf.zeros([minibatch_size, 1])
-    if False: #with tf.name_scope('MutualInfo'):
+    with tf.name_scope('MutualInfo'):
         latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
         labels = training_set.get_random_labels_tf(minibatch_size)
         rho1 = np.array([1])
         rho0 = np.array([0])
-        fake0 = G.get_output_for(latents, labels, rho0, randomize_noise=False, style_mixing_prob=None, is_training=True)
-        fake1 = G.get_output_for(latents, labels, rho1, randomize_noise=False, style_mixing_prob=None, is_training=True)
-        fake0_recon = AE.get_output_for(fake1, labels)
+        fake0 = G.get_output_for(latents, labels, rho0, randomize_noise=False, style_mixing_prob=None, is_training=True)[0]
+        fake1 = G.get_output_for(latents, labels, rho1, randomize_noise=False, style_mixing_prob=None, is_training=True)[0]
+        fake0_recon = MI.get_output_for(fake1, labels)
         ae_loss = tf.reduce_mean((fake0_recon - fake0)**2, axis=[1,2,3]) # MSE
         loss += ae_loss_weight * tf.reshape(ae_loss, [-1, 1])
         ae_loss = autosummary('Loss/ae_loss', ae_loss)
-        fake0 = autosummary('gloss/fake0', fake0)
-        fake1 = autosummary('gloss/fake1', fake1)
     return loss, reg, ae_loss
+
+
+#----------------------------------------------------------------------------
+# Feature Autoencoder loss
+
+
+# TODO these
+def FeatAE_l2(MI, G, D, opt, training_set, minibatch_size):
+    print('MI feature loss...')
+    _ = opt
+    latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
+    labels = training_set.get_random_labels_tf(minibatch_size)
+    rho1 = np.array([1])
+    rho0 = np.array([0])
+    gfake0 = G.get_output_for(latents, labels, rho0, randomize_noise=False, style_mixing_prob=None, is_training=True)
+    dfake0 = D.get_output_for(gfake0[0], labels, rho0, is_training=True)
+    gfake1 = G.get_output_for(latents, labels, rho1, randomize_noise=False, style_mixing_prob=None, is_training=True)
+    dfake1 = D.get_output_for(gfake1[0], labels, rho1, is_training=True)
+    feats0 = gfake0[1:] + dfake0[1:]
+    feats1 = gfake1[1:] + dfake1[1:]
+    feats0_pred = MI.get_output_for(gfake1[0], labels, feats_in=feats1)
+    gloss, dloss = tf.zeros([]), tf.zeros([])
+    loss = tf.zeros([])
+    for fp0, f0 in zip(feats0_pred, feats0): 
+        #loss += norm(fp0 - f0)
+        ll = tf.reduce_mean(tf.square(fp0-f0), axis=list(range(1, len(f0.shape))))
+        if 'Recon/D' in fp0.name: 
+            gloss += ll
+        elif 'Recon/G' in fp0.name: 
+            dloss += ll
+    loss = gloss + dloss
+    return loss, gloss, dloss # feats1, feats0, feats0_pred
+
+
+def G_logistic_ns_pathreg_ft(G, D, MI, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, tau=0.01, mi_weight=0.000001):
+    print('G feature loss...')
+    loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
+    # TODO split to G only
+    _, mi_loss,_ = FeatAE_l2(MI, G, D, opt, training_set, minibatch_size)
+    loss += mi_weight * mi_loss
+    return loss, reg, mi_loss
+
+
+def D_logistic_r1_ft(G, D, MI, opt, training_set, minibatch_size, reals, labels, gamma=10.0, mi_weight=0.000001):
+    print('D feature loss...')
+    loss, reg = D_logistic_r1(G, D, opt, training_set, minibatch_size, reals, labels, gamma)
+    # TODO split to D only
+    _, _, mi_loss = FeatAE_l2(MI, G, D, opt, training_set, minibatch_size)
+    loss += mi_weight * mi_loss
+    return loss, reg, mi_loss
 
 
 #----------------------------------------------------------------------------

@@ -53,7 +53,7 @@ def dense_layer(x, fmaps, gain=1, use_wscale=True, lrmul=1, weight_var='weight')
 
 # Convolution layer with optional upsampling or downsampling.
 
-def conv2d_layer(x, fmaps, kernel, up=False, down=False, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, weight_var='weight', adapt_func='training.networks_stylegan2.apply_identity'):
+def conv2d_layer(x, fmaps, kernel, up=False, down=False, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, weight_var='weight', adapt_func='training.networks_stylegan2.apply_identity', rho_in=1):
     assert not (up and down)
     assert kernel >= 1 and kernel % 2 == 1
     x_prev = x
@@ -64,7 +64,7 @@ def conv2d_layer(x, fmaps, kernel, up=False, down=False, resample_kernel=None, g
         x = conv_downsample_2d(x, tf.cast(w, x.dtype), data_format='NCHW', k=resample_kernel)
     else:
         x = tf.nn.conv2d(x, tf.cast(w, x.dtype), data_format='NCHW', strides=[1,1,1,1], padding='SAME')
-    x = call_func_by_name(func_name=adapt_func, x=x, x_prev=x)
+    x = call_func_by_name(func_name=adapt_func, x=x, x_prev=x, rho_in=rho_in)
     return x
 
 #----------------------------------------------------------------------------
@@ -148,20 +148,25 @@ def apply_adaptive_residual_scale(x, x_prev):
         g = tf.nn.conv2d(x_prev, tf.cast(wa, x_prev.dtype), data_format='NCHW', strides=[1,1,1,1], padding='SAME')
     return x * g
 
-
+# Parallel Residual Adapters
 def apply_adaptive_residual_shift(x, x_prev, rho_in=np.array([1])):
-    if x.shape[2] > x_prev.shape[2]:
-        return x
-        #b = tf.layers.Conv2DTranspose(x.shape[1], 1, [2,2], 'same', data_format='channels_first', use_bias=False, kernel_initializer=tf.initializers.zeros())(x_prev)
-    elif x.shape[2] < x_prev.shape[2]:
-        return x
-        #wa = tf.get_variable('adapt/gamma', shape=[1, 1, x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.zeros())
-        #b = tf.nn.conv2d(x_prev, tf.cast(wa, x_prev.dtype), data_format='NCHW', strides=[1,1,2,2], padding='SAME')
-    else:
-        wa = tf.get_variable('adapt/gamma', shape=[1, 1, x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.zeros())
-        wa = wa * rho_in
-        b = tf.nn.conv2d(x_prev, tf.cast(wa, x_prev.dtype), data_format='NCHW', strides=[1,1,1,1], padding='SAME')
-    return x + b
+    if x.shape[2] != x_prev.shape[2]: return x
+    wa = tf.get_variable('adapt/gamma', shape=[1, 1, x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.zeros())
+    # b = tf.get_variable('adapt/bias', shape=[1, x_prev.shape[1], 1, 1], initializer=tf.initializers.zeros()) 
+    wa = wa * rho_in
+    a = tf.nn.conv2d(x_prev, tf.cast(wa, x_prev.dtype), data_format='NCHW', strides=[1,1,1,1], padding='SAME')
+    a = apply_bias_act(a, act='linear', bias_var='adapt/bias')
+    return x + a
+
+def apply_adaptive_residual_shift_relu(x, x_prev, rho_in=np.array([1])):
+    if x.shape[2] != x_prev.shape[2]: return x
+    wa = tf.get_variable('adapt/gamma', shape=[1, 1, x_prev.shape[1].value, x.shape[1].value], initializer=tf.initializers.zeros())
+   #  b = tf.get_variable('adapt/bias', shape=[x_prev.shape[1]], initializer=tf.initializers.zeros())
+    wa = wa * rho_in
+    a = tf.nn.conv2d(x_prev, tf.cast(wa, x_prev.dtype), data_format='NCHW', strides=[1,1,1,1], padding='SAME')
+    a = apply_bias_act(a, act='relu', bias_var='adapt/bias')
+    return x + a
+
 
 def apply_adaptive_residual_scale_shift(x, x_prev):
     x = apply_adaptive_residual_scale(x, x_prev)
@@ -245,7 +250,7 @@ def minibatch_stddev_layer(x, group_size=4, num_new_features=1):
 def G_main(
     latents_in,                                         # First input: Latent vectors (Z) [minibatch, latent_size].
     labels_in,                                          # Second input: Conditioning labels [minibatch, label_size].
-    rho_in,
+    rho_in                  = tf.zeros([1]),
     truncation_psi          = 0.5,                      # Style strength multiplier for the truncation trick. None = disable.
     truncation_cutoff       = None,                     # Number of layers for which to apply the truncation trick. None = disable.
     truncation_psi_val      = None,                     # Value for truncation_psi to use during validation.
@@ -333,9 +338,9 @@ def G_main(
         images_out = components.synthesis.get_output_for(dlatents, rho_in, is_training=is_training, force_clean_graph=is_template_graph, **kwargs)
 
     # Return requested outputs.
-    images_out = tf.identity(images_out, name='images_out')
+    #images_out = tf.identity(images_out, name='images_out')
     if return_dlatents:
-        return images_out, dlatents
+        return images_out + (dlatents,)
     return images_out
 
 #----------------------------------------------------------------------------
@@ -593,6 +598,7 @@ def G_synthesis_stylegan2(
 
     # Early layers.
     y = None
+    feats = []
     with tf.variable_scope('4x4'):
         with tf.variable_scope('Const'):
             x = tf.get_variable('const', shape=[1, nf(1), 4, 4], initializer=tf.initializers.random_normal())
@@ -601,6 +607,7 @@ def G_synthesis_stylegan2(
             x = layer(x, layer_idx=0, fmaps=nf(1), kernel=3)
         if architecture == 'skip':
             y = torgb(x, y, 2)
+        feats.append(x)
 
     # Main layers.
     for res in range(3, resolution_log2 + 1):
@@ -610,10 +617,14 @@ def G_synthesis_stylegan2(
                 y = upsample(y)
             if architecture == 'skip' or res == resolution_log2:
                 y = torgb(x, y, res)
+            feats.append(x)
     images_out = y
+    images_out = tf.identity(images_out, name='images_out')
 
     assert images_out.dtype == tf.as_dtype(dtype)
-    return tf.identity(images_out, name='images_out')
+    return tuple([images_out] + feats)
+    #return tf.identity(images_out, name='images_out'), feats
+
 
 #----------------------------------------------------------------------------
 # Original StyleGAN discriminator.
@@ -724,6 +735,7 @@ def D_stylegan(
 def D_stylegan2(
     images_in,                          # First input: Images [minibatch, channel, height, width].
     labels_in,                          # Second input: Labels [minibatch, label_size].
+    rho_in              = tf.zeros([1]),
     num_channels        = 3,            # Number of input color channels. Overridden based on dataset.
     resolution          = 1024,         # Input resolution. Overridden based on dataset.
     label_size          = 0,            # Dimensionality of the labels, 0 if no labels. Overridden based on dataset.
@@ -751,18 +763,20 @@ def D_stylegan2(
     labels_in.set_shape([None, label_size])
     images_in = tf.cast(images_in, dtype)
     labels_in = tf.cast(labels_in, dtype)
+    rho_in.set_shape([1])
+    rho_in = tf.cast(rho_in, dtype)
 
     # Building blocks for main layers.
     def fromrgb(x, y, res): # res = 2..resolution_log2
         with tf.variable_scope('FromRGB'):
-            t = apply_bias_act(conv2d_layer(y, fmaps=nf(res-1), kernel=1, adapt_func=adapt_func), act=act)
+            t = apply_bias_act(conv2d_layer(y, fmaps=nf(res-1), kernel=1, adapt_func=adapt_func, rho_in=rho_in), act=act)
             return t if x is None else x + t
     def block(x, res): # res = 2..resolution_log2
         t = x
         with tf.variable_scope('Conv0'):
-            x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-1), kernel=3, adapt_func=adapt_func), act=act)
+            x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-1), kernel=3, adapt_func=adapt_func, rho_in=rho_in), act=act)
         with tf.variable_scope('Conv1_down'):
-            x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-2), kernel=3, down=True, resample_kernel=resample_kernel, adapt_func=adapt_func), act=act)
+            x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-2), kernel=3, down=True, resample_kernel=resample_kernel, adapt_func=adapt_func, rho_in=rho_in), act=act)
         if architecture == 'resnet':
             with tf.variable_scope('Skip'):
                 t = conv2d_layer(t, fmaps=nf(res-2), kernel=1, down=True, resample_kernel=resample_kernel)
@@ -775,11 +789,13 @@ def D_stylegan2(
     # Main layers.
     x = None
     y = images_in
+    feats = []
     for res in range(resolution_log2, 2, -1):
         with tf.variable_scope('%dx%d' % (2**res, 2**res)):
             if architecture == 'skip' or res == resolution_log2:
                 x = fromrgb(x, y, res)
             x = block(x, res)
+            feats.append(x)
             if architecture == 'skip':
                 y = downsample(y)
 
@@ -791,9 +807,10 @@ def D_stylegan2(
             with tf.variable_scope('MinibatchStddev'):
                 x = minibatch_stddev_layer(x, mbstd_group_size, mbstd_num_features)
         with tf.variable_scope('Conv'):
-            x = apply_bias_act(conv2d_layer(x, fmaps=nf(1), kernel=3, adapt_func=adapt_func), act=act)
+            x = apply_bias_act(conv2d_layer(x, fmaps=nf(1), kernel=3, adapt_func=adapt_func, rho_in=rho_in), act=act)
         with tf.variable_scope('Dense0'):
             x = apply_bias_act(dense_layer(x, fmaps=nf(0)), act=act)
+        feats.append(x)
 
     if cos_output:
         # TODO: assumes no labels
@@ -814,14 +831,77 @@ def D_stylegan2(
             if labels_in.shape[1] > 0:
                 x = tf.reduce_sum(x * labels_in, axis=1, keepdims=True)
         scores_out = x
-
+    
     # Output.
     assert scores_out.dtype == tf.as_dtype(dtype)
     scores_out = tf.identity(scores_out, name='scores_out')
-    return scores_out
+    return tuple([scores_out] + feats)
 
 #----------------------------------------------------------------------------
 # Image autoencoder
+
+def FeatAE(
+    images_in,                          # First input: Images [minibatch, channel, height, width].
+    labels_in,                          # Second input: Labels [minibatch, label_size].
+    feats_in            = [],            # TODO HACKY List input, REQUIRED.
+    num_channels        = 3,            # Number of input color channels. Overridden based on dataset.
+    resolution          = 1024,
+    label_size          = 0,            # Dimensionality of the labels, 0 if no labels. Overridden based on dataset.
+    fmap_base           = 16 << 10,     # Overall multiplier for the number of feature maps.
+    fmap_decay          = 1.0,          # log2 feature map reduction when doubling the resolution.
+    fmap_min            = 1,            # Minimum number of feature maps in any layer.
+    fmap_max            = 512,          # Maximum number of feature maps in any layer.
+    return_dlatents     = False,                    # Return dlatents in addition to the images?
+    is_template_graph   = False,                    # True = template graph constructed by the Network class, False = actual evaluation.
+    components          = dnnlib.EasyDict(),        # Container for sub-networks. Retained between calls.
+    nonlinearity        = 'lrelu',      # Activation function: 'relu', 'lrelu', etc.
+    dtype               = 'float32',    # Data type to use for activations and outputs.
+    **kwargs):                                          # Arguments for sub-networks (mapping and synthesis).
+
+    resolution_log2 = int(np.log2(resolution))
+    def nf(stage): return np.clip(int(fmap_base / (2.0 ** (stage * fmap_decay))), fmap_min, fmap_max)
+    images_in.set_shape([None, num_channels, resolution, resolution])
+    labels_in.set_shape([None, label_size])
+    images_in = tf.cast(images_in, dtype)
+    labels_in = tf.cast(labels_in, dtype)
+    act=nonlinearity
+
+    preds = []
+    placeholders = feats_in == []
+    f=0
+
+    for i, res in enumerate(range(2, resolution_log2 + 1)):
+        if placeholders:
+            with tf.variable_scope('Features_in/G'):
+                feats_in.append(tf.placeholder(tf.float32, shape=[None, nf(res), 2**res, 2**res], name='%dx%d' % (2**res, 2**res)))
+        with tf.variable_scope('Recon/G/%dx%d/Conv' % (2**res, 2**res)):
+            x = apply_bias_act(conv2d_layer(feats_in[f], fmaps=feats_in[f].shape[1] // 2, kernel=3), act=act)
+        with tf.variable_scope('Recon/G/%dx%d/Features_out' % (2**res, 2**res)):
+            x = apply_bias_act(conv2d_layer(x, fmaps=feats_in[f].shape[1], kernel=3))
+        preds.append(x)
+        f += 1
+
+    for i, res in enumerate(range(resolution_log2, 2, -1)):
+        if placeholders:
+            with tf.variable_scope('Features_in/D'):
+                feats_in.append(tf.placeholder(tf.float32, shape=[None, nf(res), 2**res, 2**res], name='%dx%d' % (2**res, 2**res)))
+        with tf.variable_scope('Recon/D/%dx%d/Conv' % (2**res, 2**res)):
+            x = apply_bias_act(conv2d_layer(feats_in[f], fmaps=feats_in[f].shape[1] // 2, kernel=3), act=act)
+        with tf.variable_scope('Recon/D/%dx%d/Features_out' % (2**res, 2**res)):
+            x = apply_bias_act(conv2d_layer(x, fmaps=feats_in[f].shape[1], kernel=3), act=act)
+        f += 1
+        preds.append(x)
+
+    if placeholders:
+        with tf.variable_scope('Features_in/D'):
+            feats_in.append(tf.placeholder(tf.float32, shape=[None, nf(0)], name='dense'))
+    with tf.variable_scope('Recon/D/Dense/Dense'):
+        x = apply_bias_act(dense_layer(feats_in[f], fmaps=feats_in[f].shape[1] // 2), act=act)
+    with tf.variable_scope('Recon/D/Dense/Features_out'):
+        x = apply_bias_act(dense_layer(x, fmaps=feats_in[f].shape[1]), act=act)
+    preds.append(x)
+        
+    return tuple(preds)
 
 
 def AE(

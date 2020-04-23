@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Usage
-# ./launch_training.sh N kimg model loss tx eval dir pt idx
+# ./launch_training.sh N kimg model gloss tx eval dir pt idx
 
-if (( $# < 7 )); then
-    echo "Usage: ./launch_training.sh N kimg model gloss dloss tx eval dir (kw_num) (gpu)"
+if (( $# < 9 )); then
+    echo "Usage: ./launch_training.sh N kimg model gloss dloss mi tx eval dir (kw_num) (gpu)"
     exit 1
 fi
 
@@ -12,68 +12,77 @@ N=$1
 kimg=$2
 model=$3 # r, t, s, a, m
 lr=0.002
-loss=$4 #'G_logistic_ns_gsreg'
+gloss=$4 #'G_logistic_ns_gsreg'
 dloss=$5
-tx=$6
-ev=$7
-dir=$8
-kwn=$9 
-gpu=$10
+mi=$6
+tx=$7
+ev=$8
+dir=$9
+kwn=${10} 
+gpu=${11}
 #pt=$9
 #i=$10
 
 
-echo $1 $2 $3 $4 $5 $6 $7 $8 #$9 $10
+echo $1 $2 $3 $4 $5 $6 $7 $8 $9 ${10} ${11}
 echo $(hostname)
 echo $CUDA_VISIBLE_DEVICES
 source activate py3tf115
 
 
-kw=""
-if [[ $loss == "pr" ]];
+gkw=""
+dkw=""
+if [[ $gloss == "pr" ]];
 then
-loss='G_logistic_ns_pathreg'
-elif [[ $loss == "gs" ]];
+    gloss='G_logistic_ns_pathreg'
+elif [[ $gloss == "gs" ]];
 then
-loss='G_logistic_ns_gsreg'
-if [[ $kwn == 0 ]]; then kw='{"gs_weight":5.0}'
-elif [[ $kwn == 1 ]]; then kw='{"gs_weight":10.0}'
-elif [[ $kwn == 2 ]]; then kw='{"gs_weight":3.0}'
-fi
-
-elif [[ $loss == "jc" ]];
+    gloss='G_logistic_ns_gsreg'
+    if [[ $gkwn == 0 ]]; then gkw='{"gs_weight":5.0}'
+    elif [[ $gkwn == 1 ]]; then gkw='{"gs_weight":10.0}'
+    elif [[ $gkwn == 2 ]]; then gkw='{"gs_weight":3.0}'
+    fi
+elif [[ $gloss == "jc" ]];
 then
-loss='G_logistic_ns_pathreg_jc'
-if [[ $kwn == 0 ]]; then kw='{"epsilon":0.01,"lambda_min":1.5,"lambda_max":1.7}'
-elif [[ $kwn == 1 ]]; then kw='{"epsilon":0.1,"lambda_min":1.5,"lambda_max":1.7}'
-elif [[ $kwn == 2 ]]; then  kw='{"epsilon":0.01,"lambda_min":1.55,"lambda_max":1.65}'
-elif [[ $kwn == 3 ]]; then  kw='{"epsilon":0.01,"lambda_min":1.2,"lambda_max":2.0}'
-fi
-
-elif [[ $loss == "div" ]];
+    gloss='G_logistic_ns_pathreg_jc'
+    if [[ $gkwn == 0 ]]; then gkw='{"epsilon":0.01,"lambda_min":1.5,"lambda_max":1.7}'
+    elif [[ $gkwn == 1 ]]; then gkw='{"epsilon":0.1,"lambda_min":1.5,"lambda_max":1.7}'
+    elif [[ $gkwn == 2 ]]; then  gkw='{"epsilon":0.01,"lambda_min":1.55,"lambda_max":1.65}'
+    elif [[ $gkwn == 3 ]]; then  gkw='{"epsilon":0.01,"lambda_min":1.2,"lambda_max":2.0}'
+    fi
+elif [[ $gloss == "div" ]];
 then
-loss='G_logistic_ns_pathreg_div'
-
-elif [[ $loss == "ae" ]];
-then
-loss="G_logistic_ns_pathreg_ae"
-if [[ $kwn == 0 ]]; then kw='{"ae_loss_weight":0.0}'
-elif [[ $kwn == 1 ]]; then kw='{"ae_loss_weight":1.0}'
-elif [[ $kwn == 2 ]]; then kw='{"ae_loss_weight":0.1}'
-fi
-
+    gloss='G_logistic_ns_pathreg_div'
 fi
 
 if [[ $dloss == "cos" ]];
-then
-dloss="D_logistic_r1_cos"
+    then
+    dloss="D_logistic_r1_cos"
 else
-dloss="D_logistic_r1"
-
+    dloss="D_logistic_r1"
 fi
 
 
-echo $loss
+
+if [[ $mi == "ae" ]];
+then
+    gloss="G_logistic_ns_pathreg_ae"
+    mi="config-ae"
+    if [[ $kwn == 0 ]]; then gkw='{"ae_loss_weight":0.0}'
+    elif [[ $kwn == 1 ]]; then gkw='{"ae_loss_weight":1.0}'
+    elif [[ $kwn == 2 ]]; then gkw='{"ae_loss_weight":0.1}'
+    fi
+elif [[ $mi == "ft" ]];
+    then
+    gloss="G_logistic_ns_pathreg_ft"
+    dloss="D_logistic_r1_ft"
+    mi="config-ft"
+    gkw='{"mi_weight":0.1}'
+    dkw='{"mi_weight":0.1}'
+fi
+
+
+echo $gloss
 
 if [[ $(hostname) == "jb"* ]]; # RTX
 then
@@ -129,21 +138,32 @@ elif [[ $model == "r" ]]
 then
 lr=0.0003
 cfg="config-ra"
+# ReLU Residual adapters
+elif [[ $model == "rr" ]]
+then
+lr=0.0003
+cfg="config-rr"
+# AdaIN Residual adapters
+elif [[ $model == "ar" ]]
+then
+lr=0.0003
+cfg="config-ar"
 
 fi
 
 
 
 
-
-#CUDA_VISIBLE_DEVICES=$gpu \
+echo "CUDA_VISIBLE_DEVICES=$gpu \
 python run_training.py \
 --num-gpus=1 \
 --data-dir=$ddir \
 --config=$cfg \
---g-loss=$loss \
---g-loss-kwargs=$kw \
+--g-loss=$gloss \
+--g-loss-kwargs=$gkw \
 --d-loss=$dloss \
+--d-loss-kwargs=$dkw \
+--mi-config=$mi \
 --dataset-train=$tx \
 --dataset-eval=$ev \
 --total-kimg=$kimg \
@@ -152,6 +172,7 @@ python run_training.py \
 --resume-kimg=$i \
 --lrate-base=$lr \
 --result-dir=$rdir/$tx \
---metrics=fid1k
+--metrics=fid1k"
+
 
 echo "done."
