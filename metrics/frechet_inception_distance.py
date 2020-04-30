@@ -38,6 +38,7 @@ class FID(metric_base.MetricBase):
             mu_real, sigma_real = misc.load_pkl(cache_file)
         else:
             for idx, images in enumerate(self._iterate_reals(minibatch_size=minibatch_size)):
+                if images.shape[1] == 1: images = np.concatenate([images]*3, axis=1)
                 begin = idx * minibatch_size
                 end = min(begin + minibatch_size, self.num_images)
                 activations[begin:end] = inception.run(images[:end-begin], num_gpus=num_gpus, assume_frozen=True)
@@ -56,6 +57,7 @@ class FID(metric_base.MetricBase):
                 latents = tf.random_normal([self.minibatch_per_gpu] + Gs_clone.input_shape[1:])
                 labels = self._get_random_labels_tf(self.minibatch_per_gpu)
                 images = Gs_clone.get_output_for(latents, labels, np.array([rho]), **Gs_kwargs)
+                if images.shape[1] == 1: images = tf.concat([images]*3, axis=1)
                 images = tflib.convert_images_to_uint8(images)
                 result_expr.append(inception_clone.get_output_for(images))
 

@@ -87,7 +87,7 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
     sched.tick_kimg_dict = {} #{8:28, 16:24, 32:20, 64:16, 128:12, 256:8, 512:6, 1024:4}): # Resolution-specific overrides.
 
 
-    desc += '-' + dataset_train
+    desc += '-' + dataset_train.split('/')[-1]
     dataset_args = EasyDict(tfrecord_dir=dataset_train)
     dataset_args['max_images'] = max_images
     dataset_args_eval = EasyDict(tfrecord_dir=dataset_eval)

@@ -150,7 +150,9 @@ def training_loop(
 
 
     # Load training set.
+    print("Loading train set from %s..." % dataset_args.tfrecord_dir)
     training_set = dataset.load_dataset(data_dir=dnnlib.convert_path(data_dir), verbose=True, **dataset_args)
+    print("Loading eval set from %s..." % dataset_args_eval.tfrecord_dir)
     eval_set = dataset.load_dataset(data_dir=dnnlib.convert_path(data_dir), verbose=True, **dataset_args_eval)
     grid_size, grid_reals, grid_labels = misc.setup_snapshot_image_grid(training_set, **grid_args)
     misc.save_image_grid(grid_reals, dnnlib.make_run_dir_path('reals.png'), drange=training_set.dynamic_range, grid_size=grid_size)
@@ -304,7 +306,7 @@ def training_loop(
     running_mb_counter = 0
 
     if AE_args is not None:
-            pretrain_kimg = 10
+            pretrain_kimg = 0
             pt_nimg = 0
             print('Pretraining autoencoder for %d kimg...\n' % pretrain_kimg)
             grid_fakes = Gs.run(grid_latents, grid_labels, rho, is_validation=True, minibatch_size=sched.minibatch_gpu)
@@ -394,7 +396,7 @@ def training_loop(
                 if AE_args is not None:
                     for _round in ae_rounds:
                         _ae_loss, _fo, _ofo, _rfo, _ = tflib.run([AE_loss, fo, ofo, rfo, AE_train_op], feed_dict)
-
+                        import pdb; pdb.set_trace()
 
         #latents = tf.zeros([minibatch_gpu_in] + G.input_shapes[0][1:]) * 0
         #labels = training_set.get_random_labels_tf(minibatch_gpu_in) * 0
@@ -470,8 +472,8 @@ def training_loop(
                         misc.save_image_grid(terp_fakes, dnnlib.make_run_dir_path('fakes_latent_terp_r%.2f_%06d.png' % (r, cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
 
 
-            if network_snapshot_ticks is not None and (cur_tick % network_snapshot_ticks == 0 or done 
-                                                   or (cur_tick < 30 and cur_tick % 30 == 0)):
+            if network_snapshot_ticks is not None and (cur_tick > 20 and cur_tick % network_snapshot_ticks == 0 or done 
+                                                   or (cur_tick < 20 and cur_tick % 4 == 0)):
                 pkl = dnnlib.make_run_dir_path('network-snapshot-%06d.pkl' % (cur_nimg // 1000))
                 misc.save_pkl((G, D, Gs), pkl)
                 for r in fid_rhos:

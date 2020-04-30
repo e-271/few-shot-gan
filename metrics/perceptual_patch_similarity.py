@@ -4,7 +4,7 @@
 # To view a copy of this license, visit
 # https://nvlabs.github.io/stylegan2/license.html
 
-"""Perceptual Path Length (PPL)."""
+"""Perceptual Patch Similarity (LPIPS)."""
 
 import numpy as np
 import tensorflow as tf
@@ -56,7 +56,7 @@ class LPIPS(metric_base.MetricBase):
                 Gs_clone = Gs.clone()
                 noise_vars = [var for name, var in Gs_clone.components.synthesis.vars.items() if name.startswith('noise')]
 
-                # Generate random latents and interpolation t-values.
+                # Generate random latents 
                 latents = tf.random_normal([self.minibatch_per_gpu * 2] + Gs_clone.input_shape[1:])
                 labels = tf.reshape(tf.tile(self._get_random_labels_tf(self.minibatch_per_gpu), [1, 2]), [self.minibatch_per_gpu * 2, -1])
                 images = Gs_clone.get_output_for(latents, labels, np.array([rho]), **Gs_kwargs)
@@ -77,15 +77,18 @@ class LPIPS(metric_base.MetricBase):
                 images = (images + 1) * (255 / 2)
 
                 # Evaluate perceptual distance.
+                if images.shape[1] == 1: images = tf.concat([images]*3, axis=1)
                 img_e0, img_e1 = images[0::2], images[1::2]
                 distance_measure = misc.load_pkl('./pickles/vgg16_zhang_perceptual.pkl')
-                distance_expr.append(distance_measure.get_output_for(img_e0, img_e1) * (1 / self.epsilon**2))
+                distance_expr.append(distance_measure.get_output_for(img_e0, img_e1)) 
 
         # Sampling loop.
         all_distances = []
         for begin in range(0, self.num_samples, minibatch_size):
             self._report_progress(begin, self.num_samples)
             all_distances += tflib.run(distance_expr)
+            d, e0, e1 = tflib.run(distance_expr + [img_e0, img_e1])
+           
         all_distances = np.concatenate(all_distances, axis=0)
 
         # Reject outliers.

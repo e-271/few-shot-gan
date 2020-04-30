@@ -250,10 +250,10 @@ def G_logistic_ns_pathreg_jc(G, D, opt, training_set, minibatch_size, pl_minibat
 
 #--------------------------------
 # Diversity regularization from https://arxiv.org/pdf/1901.09024.pdf
-def G_logistic_ns_pathreg_div(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, tau=0.01):
+def G_logistic_ns_pathreg_div(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.01, pl_weight=2.0, epsilon=1e-4, tau=1.0, div_weight=2.0):
     loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
 
-    # Jacobian clamping regularization.
+    # Image difference regularization.
     with tf.name_scope('Diversity'):
         # Evaluate the regularization term using a smaller minibatch to conserve memory.
         div_minibatch = minibatch_size // pl_minibatch_shrink
@@ -263,12 +263,31 @@ def G_logistic_ns_pathreg_div(G, D, opt, training_set, minibatch_size, pl_miniba
         rho = np.array([1])
         fake_images_out1, fake_dlatents_out1 = G.get_output_for(div_latents1, div_labels, rho, is_training=True, return_dlatents=True)
         fake_images_out2, fake_dlatents_out2 = G.get_output_for(div_latents2, div_labels, rho, is_training=True, return_dlatents=True)
+        # Normalize images to avoid network pushing to huge values
+        mi1, ma1 = tf.reduce_min(fake_images_out1, axis=[1,2,3]), tf.reduce_max(fake_images_out1, axis=[1,2,3])
+        mi2, ma2 = tf.reduce_min(fake_images_out2, axis=[1,2,3]), tf.reduce_max(fake_images_out2, axis=[1,2,3])
+        #fake_images_out1 = (fake_images_out1 - mi1) / (ma1 - mi1)
+        #fake_images_out2 = (fake_images_out1 - mi2) / (ma2 - mi2)
+        # Debugs
+        mi1 = autosummary('Loss/debug_img1_min', mi1)
+        ma1 = autosummary('Loss/debug_img1_max', ma1)
+        #autosummary('Loss/debug_img1_norm_min', tf.reduce_min(fake_images_out1))
+        #autosummary('Loss/debug_img1_norm_max', tf.reduce_max(fake_images_out1))
+        #autosummary('Loss/debug_img2_min', mi2)
+        #autosummary('Loss/debug_img2_max', ma2)
+        #autosummary('Loss/debug_img2_norm_min', tf.reduce_min(fake_images_out2))
+        #autosummary('Loss/debug_img2_norm_max', tf.reduce_max(fake_images_out2))
+        # Should be bounded [0, 1]
+        #img_norm = tf.reduce_mean((fake_images_out1 - fake_images_out2)**2)
+        img_norm = tf.reduce_mean(tf.abs(fake_images_out1 - fake_images_out2)) # L1 "norm" (mean absolute error)
+        img_norm = autosummary('Loss/img_mae',  img_norm)
+        #lat_norm = tf.reduce_mean((div_latents1 - div_latents2)**2)
+        lat_norm = tf.reduce_mean(tf.abs(div_latents1 - div_latents2), axis=[1]) # L1 "norm" (mean absolute error)
+        lat_norm = autosummary('Loss/lat_mae', lat_norm) # ~= 2 +- 0.05
+        div_reg = img_norm / (epsilon + lat_norm)
 
-        div_norm = norm(fake_images_out1 - fake_images_out2) / norm(fake_dlatents_out1 - fake_dlatents_out2)
-        div_reg = tf.minimum(div_norm, tau)
-        div_norm = autosummary('Loss/div_norm', div_norm)
         div_reg = autosummary('Loss/div_reg', div_reg)
-        reg -= div_reg # maximize div_reg
+        reg -= div_weight * tf.minimum(div_reg, np.ones_like(div_reg) * tau) # maximize div_reg within some range tau
 
     return loss, reg
 
@@ -276,6 +295,21 @@ def G_logistic_ns_pathreg_div(G, D, opt, training_set, minibatch_size, pl_miniba
 
 #----------------------------------------------------------------------------
 # Gradient sparsity regularizaion 
+
+
+# Normalize batch of vectors.
+def normalize(v):
+    return v / tf.sqrt(tf.reduce_sum(tf.square(v), axis=-1, keepdims=True))
+
+# Spherical interpolation of a batch of vectors.
+def slerp(a, b, t):
+    a = normalize(a)
+    b = normalize(b)
+    d = tf.reduce_sum(a * b, axis=-1, keepdims=True)
+    p = t * tf.math.acos(d)
+    c = normalize(b - d * a)
+    d = a * tf.math.cos(p) + c * tf.math.sin(p)
+    return normalize(d)
 
 # Gini index for 1D tf.tensor
 def gini_index(x):
@@ -287,49 +321,66 @@ def gini_index(x):
     return gini
 
 
-def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, gs_minibatch_shrink=2, gs_decay=0.1, gs_weight=3.0):
-    _ = opt
-    latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
-    labels = training_set.get_random_labels_tf(minibatch_size)
-    rho = np.array([1])
-    fake_images_out, fake_dlatents_out = G.get_output_for(latents, labels, rho, is_training=True, return_dlatents=True)
-    fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)[:,0:1]
-    loss = tf.nn.softplus(-fake_scores_out) # -log(sigmoid(fake_scores_out))
+# TODO(me): Discirinator gsreg
+def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.1, pl_weight=2.0, gs_weight=3.0):
+    # TODO(me): Use pathreg or no?
+    loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
 
-    # Path length regularization.
+    # Gradient sparsity regularization.
     with tf.name_scope('GradSparsityReg'):
-
-        # Evaluate the regularization term using a smaller minibatch to conserve memory.
-        if gs_minibatch_shrink > 1:
-            gs_minibatch = minibatch_size // gs_minibatch_shrink
-            gs_latents = tf.random_normal([gs_minibatch] + G.input_shapes[0][1:])
-            gs_labels = training_set.get_random_labels_tf(gs_minibatch)
-            fake_images_out, fake_dlatents_out = G.get_output_for(gs_latents, gs_labels, rho, is_training=True, return_dlatents=True)
-
-        # Compute |J*y|.a
-        # TODO why is there noise. Do we want noise?
-        gs_noise = tf.random_normal(tf.shape(fake_images_out)) / np.sqrt(np.prod(G.output_shape[2:])) # N x 3 x 256 x 256
-        gs_grads = tf.gradients(tf.reduce_sum(fake_images_out * gs_noise), [fake_dlatents_out])[0] # N x 14 x 512 (synthesis network output w from Nx512 z)?
-
-        # TODO Not to sure about just flattening this guy.
-        gs_sparsity = gini_index(tf.reshape(gs_grads, [-1])) #tf.sqrt(tf.reduce_mean(tf.reduce_sum(tf.square(gs_grads), axis=2), axis=1))
+        # simple version for debugs
+        latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
+        labels = training_set.get_random_labels_tf(minibatch_size)
+        rho = np.array([1])
+        fake_images_out, fake_dlatents_out = G.get_output_for(latents, labels, rho, is_training=True, return_dlatents=True)
+        fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)[:,0:1]
+        gs_grads = tf.gradients(tf.reduce_sum(fake_images_out), [fake_dlatents_out])[0]
+        gs_grads = autosummary('Loss/gs_grads', gs_grads)
+        gs_sparsity = gini_index(tf.reshape(gs_grads, [-1]))
+        # TODO make sure this is bounded [0, 1]
         gs_sparsity = autosummary('Loss/gs_sparsity', gs_sparsity)
+        # TODO(DEBUGS): This should be += !!!
+        reg += gs_sparsity * gs_weight
+    return loss, reg
 
-        # TODO not sure we really want this fancy buisiness, unless we use the initial value of sparsity (seems smart) or a large decay like 0.1 (also)
-        # Track exponential moving average of |J*y|.
-        with tf.control_dependencies(None):
-            gs_mean_var = tf.Variable(name='gs_mean', trainable=False, initial_value=0.0, dtype=tf.float32)
-        gs_mean = gs_mean_var + gs_decay * (tf.reduce_mean(gs_sparsity) - gs_mean_var) # If this is EMA where is the / N... Passed in from elsewhere??
-        gs_update = tf.assign(gs_mean_var, gs_mean)
 
-        # Calculate (|J*y|-a)^2.
-        with tf.control_dependencies([gs_update]):
-            gs_penalty = tf.square(gs_sparsity - gs_mean) # E_ij[||J*y||_2 - a]
-            gs_penalty = autosummary('Loss/gs_penalty', gs_penalty)
+# TODO(me): No path stuff
+# TODO(me): Discirinator gsreg
+def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.1, pl_weight=2.0, gs_weight=3.0, epsilon=1e-4):
+    # TODO(me): Use pathreg or no?
+    loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
 
-        reg = gs_penalty * gs_weight
+    # Gradient sparsity regularization.
+    with tf.name_scope('GradSparsityReg'):
+        # copypasta from ppgs metric
+        # They need to collect gradients along a path for distance, which is why this is so complex.
+        # We only really need a bunch of epsilons I believe. No path required, no lerp.
+        lat_t01 = tf.random_normal([minibatch_size * 2] + G.input_shapes[0][1:])
+        lerp_t = tf.random_uniform([minibatch_size], 0.0, 1.0)
+        labels = training_set.get_random_labels_tf(minibatch_size)
+
+        lat_t0, lat_t1 = lat_t01[0::2], lat_t01[1::2]
+        lat_e0 = slerp(lat_t0, lat_t1, lerp_t[:, np.newaxis]) # Spherical lerp between a minibatch of latent vectors
+        lat_e1 = slerp(lat_t0, lat_t1, lerp_t[:, np.newaxis] + epsilon) # Same + epsilon for appx gradients
+        lat_e01 = tf.reshape(tf.stack([lat_e0, lat_e1], axis=1), [-1, lat_t01.shape[-1]])
+        dlat_e01 = G.components.mapping.get_output_for(lat_e01, labels, np.array([1])) # get you w
+        images = G.components.synthesis.get_output_for(dlat_e01, np.array([1]), randomize_noise=False)
+        # Normalize images to avoid network pushing to huge values
+        mi, ma = tf.reduce_min(images), tf.reduce_max(images)
+        images = (images - mi) / (ma - mi)
+        images = tf.cast(images, tf.float32)
+        img_e0, img_e1 = images[0::2], images[1::2]
+        dist = norm(tf.sqrt((img_e0 - img_e1)**2)) / epsilon
+        #import pdb; pdb.set_trace()
+        sparsity = gini_index(dist)
+        dist = autosummary('Loss/dist_eps', dist)
+        sparsity = autosummary('Loss/sparsity', sparsity)
+        reg += gs_weight * sparsity
 
     return loss, reg
+
+
+
 
 #----------------------------------------------------------------------------
 # Adaptive weight regulariation

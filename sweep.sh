@@ -17,21 +17,17 @@ loss="pr"
 #qsub sgan_ca.qsub $N $kimg $m $loss $tx $tx $dir
 #done
 
-dir="mi_cos"
+dir="loss_testing"
 N=25
-kimg=1000
-m=r
+kimg=100
+m=t
 tx="tower25"
 ev="tower"
-loss=ae
+loss="div"
+dloss="x"
+kw=0
 
-
-for dloss in x cos; do
-for kw in 0 1; do
 qsub sgan_ca.qsub $N $kimg $m $loss $dloss $tx $ev $dir $kw
-done
-done
-
 
 
 #loss=gs

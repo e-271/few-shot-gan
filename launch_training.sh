@@ -18,7 +18,7 @@ tx=$6
 ev=$7
 dir=$8
 kwn=$9 
-gpu=$10
+gpu=${10}
 #pt=$9
 #i=$10
 
@@ -36,10 +36,7 @@ loss='G_logistic_ns_pathreg'
 elif [[ $loss == "gs" ]];
 then
 loss='G_logistic_ns_gsreg'
-if [[ $kwn == 0 ]]; then kw='{"gs_weight":5.0}'
-elif [[ $kwn == 1 ]]; then kw='{"gs_weight":10.0}'
-elif [[ $kwn == 2 ]]; then kw='{"gs_weight":3.0}'
-fi
+kw={\"gs_weight\":$kwn}
 
 elif [[ $loss == "jc" ]];
 then
@@ -53,6 +50,7 @@ fi
 elif [[ $loss == "div" ]];
 then
 loss='G_logistic_ns_pathreg_div'
+kw={\"div_weight\":$kwn}
 
 elif [[ $loss == "ae" ]];
 then
@@ -89,19 +87,25 @@ if [[ $pt == "" ]]
 then
 i=0
 echo "automatically choosing pretrain"
-if [[ $tx == "kannada"* ]]
+if [[ $tx == *"KannadaHnd"* ]]
 then
-pt='./pickles/eng-config-f-10M.pkl'
-elif [[ $tx == "tower"* ]]
+pt='./pickles/mnist.pkl'
+elif [[ $tx == *"mnist"* ]]
+then
+pt='./pickles/EngFnt.pkl'
+elif [[ $tx == *"EngFnt"* ]]
+then
+pt='./pickles/mnist.pkl'
+elif [[ $tx == *"tower"* ]]
 then
 pt='./pickles/church-config-f.pkl'
-elif [[ $tx == "bus"* ]]
+elif [[ $tx == *"bus"* ]]
 then
 pt='./pickles/car-config-f.pkl'
-elif [[ $tx == "dog"* ]]
+elif [[ $tx == *"dog"* ]]
 then
 pt='./pickles/cat-config-f.pkl'
-elif [[ $tx == "danbooru"* ]] || [[ $tx == "anime"* ]] || [[ $tx == "rei"* ]] || [[ $tx == "obama"* ]]
+elif [[ $tx == *"danbooru"* ]] || [[ $tx == "anime"* ]] || [[ $tx == "rei"* ]] || [[ $tx == "obama"* ]]
 then
 pt='./pickles/ffhq-config-f.pkl'
 fi
@@ -135,8 +139,7 @@ fi
 
 
 
-
-#CUDA_VISIBLE_DEVICES=$gpu \
+echo "CUDA_VISIBLE_DEVICES=$gpu \
 python run_training.py \
 --num-gpus=1 \
 --data-dir=$ddir \
@@ -151,7 +154,26 @@ python run_training.py \
 --resume-pkl=$pt \
 --resume-kimg=$i \
 --lrate-base=$lr \
---result-dir=$rdir/$tx \
---metrics=fid1k
+--result-dir=$rdir/$(basename $tx) \
+--metrics=fid1k"
+
+
+CUDA_VISIBLE_DEVICES=$gpu \
+python run_training.py \
+--num-gpus=1 \
+--data-dir=$ddir \
+--config=$cfg \
+--g-loss=$loss \
+--g-loss-kwargs=$kw \
+--d-loss=$dloss \
+--dataset-train=$tx \
+--dataset-eval=$ev \
+--total-kimg=$kimg \
+--max-images=$N \
+--resume-pkl=$pt \
+--resume-kimg=$i \
+--lrate-base=$lr \
+--result-dir=$rdir/$(basename $tx) \
+--metrics=fid10k,ppgs10k,lpips10k
 
 echo "done."

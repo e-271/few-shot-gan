@@ -411,6 +411,12 @@ def create_lsun(tfrecord_dir, lmdb_dir, resolution=256, max_images=None):
         total_images = txn.stat()['entries'] # pylint: disable=no-value-for-parameter
         if max_images is None:
             max_images = total_images
+        if not partition: 
+            tfr = TFRecordExporter(tfrecord_dir, max_images)
+        else: 
+            tfr_train = TFRecordExporter(tfrecord_dir, max_images // 2), 
+            tfr_val = TFRecordExporter(tfrecord_dir, max_images - max_images // 2)
+
         with TFRecordExporter(tfrecord_dir, max_images) as tfr:
             for _idx, (_key, value) in enumerate(txn.cursor()):
                 try:
@@ -427,7 +433,11 @@ def create_lsun(tfrecord_dir, lmdb_dir, resolution=256, max_images=None):
                     img = img.resize((resolution, resolution), PIL.Image.ANTIALIAS)
                     img = np.asarray(img)
                     img = img.transpose([2, 0, 1]) # HWC => CHW
-                    tfr.add_image(img)
+                    if not paritition:
+                        tfr.add_image(img)
+                    else:
+                        if _idx % 2: tfr_train.add_image(img)
+                        else: tfr_val.add_image(img)
                 except:
                     print(sys.exc_info()[1])
                 if tfr.cur_images == max_images:

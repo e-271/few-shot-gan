@@ -103,6 +103,9 @@ class PPGS(metric_base.MetricBase):
                 # Scale dynamic range from [-1,1] to [0,255] for VGG.
                 images = (images + 1) * (255 / 2)
 
+                # Stack grayscale image
+                if images.shape[1] == 1: images = tf.concat([images]*3, axis=1)
+
                 # Evaluate perceptual distance.
                 img_e0, img_e1 = images[0::2], images[1::2]
                 distance_measure = misc.load_pkl('./pickles/vgg16_zhang_perceptual.pkl')
