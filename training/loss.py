@@ -321,6 +321,7 @@ def gini_index(x):
     return gini
 
 
+# TODO(me): Penalizing sparsity v gradient? Clip gradient (jc)?
 # TODO(me): Discirinator gsreg
 def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.1, pl_weight=2.0, gs_weight=3.0):
     # TODO(me): Use pathreg or no?
@@ -332,21 +333,55 @@ def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, pl_minibatch_sh
         latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
         labels = training_set.get_random_labels_tf(minibatch_size)
         rho = np.array([1])
-        fake_images_out, fake_dlatents_out = G.get_output_for(latents, labels, rho, is_training=True, return_dlatents=True)
-        fake_scores_out = D.get_output_for(fake_images_out, labels, is_training=True)[:,0:1]
-        gs_grads = tf.gradients(tf.reduce_sum(fake_images_out), [fake_dlatents_out])[0]
+        images = G.get_output_for(latents, labels, rho, is_training=True, randomize_noise=False)
+        gs_grads = tf.reduce_sum(tf.abs(tf.gradients(images, latents)[0]), axis=1) # Average (might also sum) gradient magnitude
         gs_grads = autosummary('Loss/gs_grads', gs_grads)
-        gs_sparsity = gini_index(tf.reshape(gs_grads, [-1]))
+        gs_sparsity = gini_index(gs_grads)
+        gs_sparsity = autosummary('Loss/gs_sparsity', gs_sparsity)
+        reg += gs_sparsity * gs_weight
+    return loss, reg
+
+
+
+
+# TODO(me): Penalizing sparsity v gradient? Clip gradient (jc)?
+# TODO(me): Discirinator gsreg
+def _G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.1, pl_weight=2.0, gs_weight=3.0, epsilon=1e-4):
+    # TODO(me): Use pathreg or no?
+    loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
+
+    # Gradient sparsity regularization.
+    with tf.name_scope('GradSparsityReg'):
+        # simple version for debugs
+        lat1 = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
+        lat2 = lat1 + epsilon
+        latents = tf.reshape(tf.stack([lat1, lat2], axis=1), [-1, lat1.shape[-1]]) # TODO(me): Sus, try normal stacking/concat/separate g calls
+        labels = training_set.get_random_labels_tf(minibatch_size)
+        rho = np.array([1])
+        images = G.get_output_for(latents, labels, rho, is_training=True, randomize_noise=False)
+        # TODO(me): Deboogs
+        im1 = G.get_output_for(lat1, labels, rho, is_training=True, randomize_noise=False)
+        im2 = G.get_output_for(lat2, labels, rho, is_training=True, randomize_noise=False)
+        gs_grads1 = tf.reduce_mean(tf.abs(im1 - im2), axis=[1,2,3]) / epsilon
+        gs_grads1 = autosummary('Loss/gs_grads1', tf.reduce_mean(gs_grads1))
+        # TODO(me): Avg dx / avg dz ? Avg dx / sum dz? Sum dx / sum dz? Does it matter
+        gs_grads2 = tf.reduce_sum(tf.abs(tf.gradients(im1, lat1)[0]), axis=1) # Average (might also sum) gradient magnitude
+        gs_grads2 = autosummary('Loss/gs_grads2', tf.reduce_mean(gs_grads2))
+
+        img1, img2 = images[0::2], images[1::2]
+        gs_grads = tf.reduce_mean(tf.abs(img1 - img2), axis=[1,2,3]) / epsilon # TODO(me): Sus
+        gs_grads = autosummary('Loss/gs_grads', tf.reduce_mean(gs_grads))
+        gs_sparsity = gini_index(gs_grads)
         # TODO make sure this is bounded [0, 1]
         gs_sparsity = autosummary('Loss/gs_sparsity', gs_sparsity)
-        # TODO(DEBUGS): This should be += !!!
-        reg += gs_sparsity * gs_weight
+        # TODO(me): Debooogs += and only 1 term
+        reg = (gs_sparsity + gs_grads1 + gs_grads2) * gs_weight
     return loss, reg
 
 
 # TODO(me): No path stuff
 # TODO(me): Discirinator gsreg
-def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.1, pl_weight=2.0, gs_weight=3.0, epsilon=1e-4):
+def _G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink=2, pl_decay=0.1, pl_weight=2.0, gs_weight=3.0, epsilon=1e-4):
     # TODO(me): Use pathreg or no?
     loss, reg = G_logistic_ns_pathreg(G, D, opt, training_set, minibatch_size, pl_minibatch_shrink, pl_decay, pl_weight)
 
@@ -366,15 +401,16 @@ def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, pl_minibatch_sh
         dlat_e01 = G.components.mapping.get_output_for(lat_e01, labels, np.array([1])) # get you w
         images = G.components.synthesis.get_output_for(dlat_e01, np.array([1]), randomize_noise=False)
         # Normalize images to avoid network pushing to huge values
-        mi, ma = tf.reduce_min(images), tf.reduce_max(images)
-        images = (images - mi) / (ma - mi)
+        #mi, ma = tf.reduce_min(images), tf.reduce_max(images)
+        #images = (images - mi) / (ma - mi)
         images = tf.cast(images, tf.float32)
         img_e0, img_e1 = images[0::2], images[1::2]
-        dist = norm(tf.sqrt((img_e0 - img_e1)**2)) / epsilon
+        dist = norm(img_e0 - img_e1) / epsilon # TODO(me): Are these dimensions correct? It might not complain...
         #import pdb; pdb.set_trace()
         sparsity = gini_index(dist)
         dist = autosummary('Loss/dist_eps', dist)
         sparsity = autosummary('Loss/sparsity', sparsity)
+        print(gs_weight)
         reg += gs_weight * sparsity
 
     return loss, reg

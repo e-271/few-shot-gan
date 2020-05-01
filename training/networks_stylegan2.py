@@ -217,7 +217,10 @@ def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate
     elif demodulate:
         x *= tf.cast(d[:, :, np.newaxis, np.newaxis], x.dtype) # [BOhw] Not fused => scale output activations.
 
-    x = call_func_by_name(func_name=adapt_func, x=x, x_prev=x_prev, rho_in=rho_in)
+    # 
+    s, u, v = tf.linalg.svd(w)
+
+    x = call_func_by_name(func_name=adapt_func, x=x, x_prev=x_prev, rho_in=rho_in, w=w)
     return x
 
 #----------------------------------------------------------------------------
