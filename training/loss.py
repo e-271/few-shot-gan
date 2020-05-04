@@ -334,14 +334,12 @@ def G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, pl_minibatch_sh
         labels = training_set.get_random_labels_tf(minibatch_size)
         rho = np.array([1])
         images = G.get_output_for(latents, labels, rho, is_training=True, randomize_noise=False)
-        gs_grads = tf.reduce_sum(tf.abs(tf.gradients(images, latents)[0]), axis=1) # Average (might also sum) gradient magnitude
+        gs_grads = tf.reduce_sum(tf.abs(tf.gradients(images, latents)[0]), axis=1) # Sum of gradient magnitudes
         gs_grads = autosummary('Loss/gs_grads', gs_grads)
         gs_sparsity = gini_index(gs_grads)
         gs_sparsity = autosummary('Loss/gs_sparsity', gs_sparsity)
         reg += gs_sparsity * gs_weight
     return loss, reg
-
-
 
 
 # TODO(me): Penalizing sparsity v gradient? Clip gradient (jc)?

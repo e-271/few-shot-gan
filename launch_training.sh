@@ -134,6 +134,11 @@ then
 lr=0.0003
 cfg="config-ra"
 
+elif [[ $model == "d" ]]
+then
+lr=0.003
+cfg="config-ra" # TODO
+
 fi
 
 
@@ -174,6 +179,6 @@ python run_training.py \
 --resume-kimg=$i \
 --lrate-base=$lr \
 --result-dir=$rdir/$(basename $tx) \
---metrics=fid10k,ppgs10k,lpips10k
+#--metrics=fid10k,ppgs10k,lpips10k
 
 echo "done."

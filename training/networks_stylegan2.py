@@ -51,20 +51,56 @@ def dense_layer(x, fmaps, gain=1, use_wscale=True, lrmul=1, weight_var='weight')
     return tf.matmul(x, w)
 
 
-# Convolution layer with optional upsampling or downsampling.
+def _get_conv_w(x, fmaps, kernel, gain, use_wscale, lrmul, weight_var, svd, factorized):
+    if factorized:
+        # lrmul / wscale / gain?
+        kf = 1 # dimension reduction factor
+        sv = min(x.shape[1].value, fmaps)
+        k = tf.get_variable('SVD/adapt/lambda', shape=[kernel, kernel, sv // kf], initializer=tf.initializers.ones())
+        s = tf.get_variable("SVD/s", shape=[kernel, kernel, sv])
+        u = tf.get_variable("SVD/u", shape=[kernel, kernel, x.shape[1].value, sv])
+        v = tf.get_variable("SVD/v", shape=[kernel, kernel, fmaps, sv])
+        if sv // kf < sv:
+            k = tf.concat([k, tf.get_variable('SVD/lambda', shape=[kernel, kernel, sv - sv // kf], initializer=tf.initializers.ones())], axis=2)
+        w = tf.matmul(tf.matmul(u, tf.linalg.diag(k * s)), tf.transpose(v, perm=[0, 1, 3, 2]))
 
-def conv2d_layer(x, fmaps, kernel, up=False, down=False, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, weight_var='weight', adapt_func='training.networks_stylegan2.apply_identity'):
+    else:
+        # Get weight.
+        w = get_weight([kernel, kernel, x.shape[1].value, fmaps], gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
+        # SVD.
+        if svd:
+            old_shape = w.shape
+            _s, _u, _v = tf.svd(w)
+            sv = min(x.shape[1].value, fmaps)
+            s = tf.get_variable("SVD/s", shape=[kernel, kernel, sv])
+            u = tf.get_variable("SVD/u", shape=[kernel, kernel, x.shape[1].value, sv])
+            v = tf.get_variable("SVD/v", shape=[kernel, kernel, fmaps, sv])
+            assert s.shape == _s.shape
+            assert u.shape == _u.shape
+            assert v.shape == _v.shape
+            s = s.assign(_s)
+            u = u.assign(_u)
+            v = v.assign(_v)
+            w = tf.matmul(tf.matmul(u, tf.linalg.diag(s)), tf.transpose(v, perm=[0, 1, 3, 2]))
+            assert w.shape == old_shape
+    return w
+
+# Convolution layer with optional upsampling or downsampling.
+def conv2d_layer(x, fmaps, kernel, up=False, down=False, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, weight_var='weight', svd=False, factorized=False, adapt_func='training.networks_stylegan2.apply_identity'):
     assert not (up and down)
     assert kernel >= 1 and kernel % 2 == 1
     x_prev = x
-    w = get_weight([kernel, kernel, x.shape[1].value, fmaps], gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
+    #w = get_weight([kernel, kernel, x.shape[1].value, fmaps], gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
+    w = _get_conv_w(x, fmaps, kernel, gain, use_wscale, lrmul, weight_var, svd, factorized)
+
     if up:
         x = upsample_conv_2d(x, tf.cast(w, x.dtype), data_format='NCHW', k=resample_kernel)
     elif down:
         x = conv_downsample_2d(x, tf.cast(w, x.dtype), data_format='NCHW', k=resample_kernel)
     else:
         x = tf.nn.conv2d(x, tf.cast(w, x.dtype), data_format='NCHW', strides=[1,1,1,1], padding='SAME')
-    x = call_func_by_name(func_name=adapt_func, x=x, x_prev=x)
+    # TODO restore RA functionality
+    #x = call_func_by_name(func_name=adapt_func, x=x, x_prev=x)
     return x
 
 #----------------------------------------------------------------------------
@@ -176,21 +212,42 @@ def apply_adaptive_scale_resshift(x, x_prev):
 #----------------------------------------------------------------------------
 # Modulated convolution layer.
 
+def _modconv_w(x, y, fmaps, kernel, demodulate=True, gain=1, use_wscale=True, lrmul=1, fused_modconv=True, weight_var='weight', mod_weight_var='mod_weight', mod_bias_var='mod_bias', svd=False, factorized=False):
+    if factorized:
+        # lrmul / wscale / gain?
+        kf = 512 # dimension reduction factor
+        k = tf.get_variable('SVD/adapt/lambda', shape=[kernel, kernel, fmaps // kf], initializer=tf.initializers.ones())
+        s = tf.get_variable("SVD/s", shape=[kernel, kernel, fmaps])
+        u = tf.get_variable("SVD/u", shape=[kernel, kernel, x.shape[1].value, fmaps])
+        v = tf.get_variable("SVD/v", shape=[kernel, kernel, fmaps, fmaps])
+        if fmaps // kf < fmaps:
+            k = tf.concat([k, tf.get_variable('SVD/lambda', shape=[kernel, kernel, fmaps - fmaps // kf], initializer=tf.initializers.ones())], axis=2)
+        w = tf.matmul(tf.matmul(u, tf.linalg.diag(k * s)), tf.transpose(v, perm=[0, 1, 3, 2]))
 
-def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate=True, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, fused_modconv=True, weight_var='weight', mod_weight_var='mod_weight', mod_bias_var='mod_bias', adapt_func='training.networks_stylegan2.apply_identity', rho_in=1):
-    assert not (up and down)
-    assert kernel >= 1 and kernel % 2 == 1
-    x_prev = x
+    else:
+        # Get weight.
+        w = get_weight([kernel, kernel, x.shape[1].value, fmaps], gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
+        # SVD.
+        if svd:
+            _s, _u, _v = tf.svd(w)
+            s = tf.get_variable("SVD/s", shape=[kernel, kernel, fmaps])
+            u = tf.get_variable("SVD/u", shape=[kernel, kernel, x.shape[1].value, fmaps])
+            v = tf.get_variable("SVD/v", shape=[kernel, kernel, fmaps, fmaps])
+            assert s.shape == _s.shape
+            assert u.shape == _u.shape
+            assert v.shape == _v.shape
+            s = s.assign(_s)
+            u = u.assign(_u)
+            v = v.assign(_v)
+            w = tf.matmul(tf.matmul(u, tf.linalg.diag(s)), tf.transpose(v, perm=[0, 1, 3, 2]))
 
-    # Get weight.
-    w = get_weight([kernel, kernel, x.shape[1].value, fmaps], gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
     ww = w[np.newaxis] # [BkkIO] Introduce minibatch dimension.
 
     # Modulate.
     s = dense_layer(y, fmaps=x.shape[1].value, weight_var=mod_weight_var) # [BI] Transform incoming W to style.
     s = apply_bias_act(s, bias_var=mod_bias_var) + 1 # [BI] Add bias (initially 1).
     ww *= tf.cast(s[:, np.newaxis, np.newaxis, :, np.newaxis], w.dtype) # [BkkIO] Scale input feature maps.
-    
+
     # Demodulate.
     if demodulate:
         d = tf.rsqrt(tf.reduce_sum(tf.square(ww), axis=[1,2,3]) + 1e-8) # [BO] Scaling factor.
@@ -198,8 +255,35 @@ def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate
 
     # Reshape/scale input.
     if fused_modconv:
-        x = tf.reshape(x, [1, -1, x.shape[2], x.shape[3]]) # Fused => reshape minibatch to convolution groups.
         w = tf.reshape(tf.transpose(ww, [1, 2, 3, 0, 4]), [ww.shape[1], ww.shape[2], ww.shape[3], -1])
+
+    return w
+
+
+
+
+def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate=True, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, fused_modconv=True, weight_var='weight', mod_weight_var='mod_weight', mod_bias_var='mod_bias', adapt_func='training.networks_stylegan2.apply_identity', rho_in=1, svd=True, factorized=False):
+    assert not (up and down)
+    assert kernel >= 1 and kernel % 2 == 1
+    x_prev = x
+    # w = _modconv_w(x, y, fmaps, kernel, demodulate, gain, use_wscale, lrmul, fused_modconv, weight_var, mod_weight_var, mod_bias_var, svd, factorized)
+    w = _get_conv_w(x, fmaps, kernel, gain, use_wscale, lrmul, weight_var, svd, factorized)
+    ww = w[np.newaxis] # [BkkIO] Introduce minibatch dimension.
+
+    # Modulate.
+    s = dense_layer(y, fmaps=x.shape[1].value, weight_var=mod_weight_var) # [BI] Transform incoming W to style.
+    s = apply_bias_act(s, bias_var=mod_bias_var) + 1 # [BI] Add bias (initially 1).
+    ww *= tf.cast(s[:, np.newaxis, np.newaxis, :, np.newaxis], w.dtype) # [BkkIO] Scale input feature maps.
+
+    # Demodulate.
+    if demodulate:
+        d = tf.rsqrt(tf.reduce_sum(tf.square(ww), axis=[1,2,3]) + 1e-8) # [BO] Scaling factor.
+        ww *= d[:, np.newaxis, np.newaxis, np.newaxis, :] # [BkkIO] Scale output feature maps.
+
+    # Reshape/scale input.
+    if fused_modconv:
+        w = tf.reshape(tf.transpose(ww, [1, 2, 3, 0, 4]), [ww.shape[1], ww.shape[2], ww.shape[3], -1])
+        x = tf.reshape(x, [1, -1, x.shape[2], x.shape[3]]) # Fused => reshape minibatch to convolution groups.
     else:
         x *= tf.cast(s[:, :, np.newaxis, np.newaxis], x.dtype) # [BIhw] Not fused => scale input activations.
 
@@ -217,11 +301,9 @@ def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate
     elif demodulate:
         x *= tf.cast(d[:, :, np.newaxis, np.newaxis], x.dtype) # [BOhw] Not fused => scale output activations.
 
-    # 
-    s, u, v = tf.linalg.svd(w)
-
-    x = call_func_by_name(func_name=adapt_func, x=x, x_prev=x_prev, rho_in=rho_in, w=w)
+    # x = call_func_by_name(func_name=adapt_func, x=x, x_prev=x_prev, rho_in=rho_in)
     return x
+
 
 #----------------------------------------------------------------------------
 # Minibatch standard deviation layer.
@@ -239,6 +321,10 @@ def minibatch_stddev_layer(x, group_size=4, num_new_features=1):
     y = tf.cast(y, x.dtype)                                 # [Mn11]  Cast back to original data type.
     y = tf.tile(y, [group_size, 1, s[2], s[3]])             # [NnHW]  Replicate over group and pixels.
     return tf.concat([x, y], axis=1)                        # [NCHW]  Append as new fmap.
+
+
+
+
 
 #----------------------------------------------------------------------------
 # Main generator network.
@@ -531,6 +617,8 @@ def G_synthesis_stylegan2(
     resample_kernel     = [1,3,3,1],    # Low-pass filter to apply when resampling activations. None = no filtering.
     fused_modconv       = True,         # Implement modulated_conv2d_layer() as a single fused op?
     adapt_func          = 'training.networks_stylegan2.apply_identity', # Scale func for modulated conv2d.
+    svd                 = True,
+    factorized          = False,
     **_kwargs):                         # Ignore unrecognized keyword args.
 
     resolution_log2 = int(np.log2(resolution))
@@ -562,10 +650,10 @@ def G_synthesis_stylegan2(
     def layer(x, layer_idx, fmaps, kernel, up=False):
         # TODO(me): Hacky plotting stuff
         if layer_toggle is not None:
-            x = modulated_conv2d_layer(x, dlatents_in[:, layer_idx], fmaps=fmaps, kernel=kernel, up=up, resample_kernel=resample_kernel, fused_modconv=fused_modconv, adapt_func=adapt_func, rho_in=int(layer_idx==layer_toggle))
+            x = modulated_conv2d_layer(x, dlatents_in[:, layer_idx], fmaps=fmaps, kernel=kernel, up=up, resample_kernel=resample_kernel, fused_modconv=fused_modconv, adapt_func=adapt_func, rho_in=int(layer_idx==layer_toggle), svd=svd, factorized=factorized)
         # Normal behavior
         else:
-            x = modulated_conv2d_layer(x, dlatents_in[:, layer_idx], fmaps=fmaps, kernel=kernel, up=up, resample_kernel=resample_kernel, fused_modconv=fused_modconv, adapt_func=adapt_func, rho_in=rho_in)
+            x = modulated_conv2d_layer(x, dlatents_in[:, layer_idx], fmaps=fmaps, kernel=kernel, up=up, resample_kernel=resample_kernel, fused_modconv=fused_modconv, adapt_func=adapt_func, rho_in=rho_in, svd=svd, factorized=factorized)
         if randomize_noise:
             noise = tf.random_normal([tf.shape(x)[0], 1, x.shape[2], x.shape[3]], dtype=x.dtype)
         else:
@@ -639,6 +727,8 @@ def D_stylegan(
     resample_kernel     = [1,3,3,1],    # Low-pass filter to apply when resampling activations. None = no filtering.
     structure           = 'auto',       # 'fixed' = no progressive growing, 'linear' = human-readable, 'recursive' = efficient, 'auto' = select automatically.
     is_template_graph   = False,        # True = template graph constructed by the Network class, False = actual evaluation.
+    svd                 = True,
+    factorized          = False,
     adapt_func          = 'training.networks_stylegan2.apply_identity', # Scale func for modulated conv2d.
     **_kwargs):                         # Ignore unrecognized keyword args.
 
@@ -657,13 +747,13 @@ def D_stylegan(
     # Building blocks for spatial layers.
     def fromrgb(x, res): # res = 2..resolution_log2
         with tf.variable_scope('FromRGB_lod%d' % (resolution_log2 - res)):
-            return apply_bias_act(conv2d_layer(x, fmaps=nf(res-1), kernel=1, adapt_func=adapt_func), act=act)
+            return apply_bias_act(conv2d_layer(x, fmaps=nf(res-1), kernel=1, svd=svd, factorized=factorized, adapt_func=adapt_func), act=act)
     def block(x, res): # res = 2..resolution_log2
         with tf.variable_scope('%dx%d' % (2**res, 2**res)):
             with tf.variable_scope('Conv0'):
-                x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-1), kernel=3, adapt_func=adapt_func), act=act)
+                x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-1), kernel=3, svd=svd, factorized=factorized, adapt_func=adapt_func), act=act)
             with tf.variable_scope('Conv1_down'):
-                x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-2), kernel=3, down=True, resample_kernel=resample_kernel, adapt_func=adapt_func), act=act)
+                x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-2), kernel=3, down=True, resample_kernel=resample_kernel, svd=svd, factorized=factorized, adapt_func=adapt_func), act=act)
             return x
 
     # Fixed structure: simple and efficient, but does not support progressive growing.
@@ -703,7 +793,7 @@ def D_stylegan(
             with tf.variable_scope('MinibatchStddev'):
                 x = minibatch_stddev_layer(x, mbstd_group_size, mbstd_num_features)
         with tf.variable_scope('Conv'):
-            x = apply_bias_act(conv2d_layer(x, fmaps=nf(1), kernel=3, adapt_func=adapt_func), act=act)
+            x = apply_bias_act(conv2d_layer(x, fmaps=nf(1), kernel=3, svd=svd, factorized=factorized, adapt_func=adapt_func), act=act)
         with tf.variable_scope('Dense0'):
             x = apply_bias_act(dense_layer(x, fmaps=nf(0)), act=act)
 
@@ -740,6 +830,8 @@ def D_stylegan2(
     mbstd_num_features  = 1,            # Number of features for the minibatch standard deviation layer.
     dtype               = 'float32',    # Data type to use for activations and outputs.
     resample_kernel     = [1,3,3,1],    # Low-pass filter to apply when resampling activations. None = no filtering.
+    svd                 = True,
+    factorized          = False,
     adapt_func          = 'training.networks_stylegan2.apply_identity', # Scale func for modulated conv2d.
     cos_output          = False,         # Use cosine similarity to class weight vectors.
     **_kwargs):                         # Ignore unrecognized keyword args.
@@ -758,14 +850,14 @@ def D_stylegan2(
     # Building blocks for main layers.
     def fromrgb(x, y, res): # res = 2..resolution_log2
         with tf.variable_scope('FromRGB'):
-            t = apply_bias_act(conv2d_layer(y, fmaps=nf(res-1), kernel=1, adapt_func=adapt_func), act=act)
+            t = apply_bias_act(conv2d_layer(y, fmaps=nf(res-1), kernel=1, svd=svd, factorized=factorized, adapt_func=adapt_func), act=act)
             return t if x is None else x + t
     def block(x, res): # res = 2..resolution_log2
         t = x
         with tf.variable_scope('Conv0'):
-            x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-1), kernel=3, adapt_func=adapt_func), act=act)
+            x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-1), kernel=3, svd=svd, factorized=factorized, adapt_func=adapt_func), act=act)
         with tf.variable_scope('Conv1_down'):
-            x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-2), kernel=3, down=True, resample_kernel=resample_kernel, adapt_func=adapt_func), act=act)
+            x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-2), kernel=3, down=True, resample_kernel=resample_kernel, svd=svd, factorized=factorized, adapt_func=adapt_func), act=act)
         if architecture == 'resnet':
             with tf.variable_scope('Skip'):
                 t = conv2d_layer(t, fmaps=nf(res-2), kernel=1, down=True, resample_kernel=resample_kernel)
@@ -794,7 +886,7 @@ def D_stylegan2(
             with tf.variable_scope('MinibatchStddev'):
                 x = minibatch_stddev_layer(x, mbstd_group_size, mbstd_num_features)
         with tf.variable_scope('Conv'):
-            x = apply_bias_act(conv2d_layer(x, fmaps=nf(1), kernel=3, adapt_func=adapt_func), act=act)
+            x = apply_bias_act(conv2d_layer(x, fmaps=nf(1), kernel=3, svd=svd, factorized=factorized, adapt_func=adapt_func), act=act)
         with tf.variable_scope('Dense0'):
             x = apply_bias_act(dense_layer(x, fmaps=nf(0)), act=act)
 
