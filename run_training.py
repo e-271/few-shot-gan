@@ -29,6 +29,8 @@ _valid_configs = [
     # Adaptive
     'config-ss',
     'config-ra',
+    'config-sv-pkl', # Create the initial SVD graph from pretrained weights
+    'config-sv', # Load an existing SVD graph and train
     'config-ae',
 
     #'config-a-gb',
@@ -48,7 +50,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks):
+def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks, sv_factors):
 
     if g_loss_kwargs != '': g_loss_kwargs = json.loads(g_loss_kwargs)
     else: g_loss_kwargs = {}
@@ -63,7 +65,7 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
     G_loss    = EasyDict(func_name='training.loss.' + g_loss, **g_loss_kwargs) #G_logistic_ns_gsreg')      # Options for generator loss.
     D_loss    = EasyDict(func_name='training.loss.' + d_loss, **d_loss_kwargs) # Options for discriminator loss.
     sched     = EasyDict()                                                     # Options for TrainingSchedule.
-    grid      = EasyDict(size='8k', layout='random')                           # Options for setup_snapshot_image_grid().
+    grid      = EasyDict(size='1080p', layout='random')                           # Options for setup_snapshot_image_grid().
     sc        = dnnlib.SubmitConfig()                                          # Options for dnnlib.submit_run().
     tf_config = {'rnd.np_random_seed': 1000}                                   # Options for tflib.init_tf().
     AE = AE_loss = AE_opt = None                                               # Default to no autoencoder. 
@@ -158,17 +160,29 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
         G = EasyDict(func_name='training.networks_stylegan.G_style')
         D = EasyDict(func_name='training.networks_stylegan.D_basic')
 
-    # Config G: Replace mapping network with adaptive scaling parameters.
-    if config_id in ['config-ss', 'config-ra', 'config-ae']:
-        G['train_scope'] = D['train_scope'] = '.*/adapt'
-        train.resume_with_new_nets = True
+    # Adaptive parameter configurations
+    if config_id in ['config-ss', 'config-ra', 'config-sv', 'config-sv-pkl', 'config-ae']:
+        G['train_scope'] = D['train_scope'] = '.*/adapt' # Freeze old parameters
+        train.resume_with_new_nets = True # Recreate with new adaptive parameters
         if config_id == 'config-ss': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
         if config_id == 'config-ra': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
+        if config_id[:9] == 'config-sv':
+            G['sv_factors'] = D['sv_factors'] = sv_factors
+            desc += '-%dsv' % sv_factors
+            if config_id == 'config-sv':
+                G['factorized'] = D['factorized'] = True
+            elif config_id == 'config-sv-pkl':
+                G['svd'] = D['svd'] = True
+
+
+        # TODO Clean up or remove this, it doesn't work?
         if g_loss == 'G_logistic_ns_pathreg_ae': 
             assert config_id == 'config-ra'
             AE = EasyDict(func_name='training.networks_stylegan2.AE')
             AE_opt = EasyDict(beta1=0.0, beta2=0.99, epsilon=1e-8)
             AE_loss = EasyDict(func_name='training.loss.AE_l2')
+
+    # TODO This also doesn't work
     if d_loss == 'D_logistic_r1_cos':
         D['cos_output'] = True
 
@@ -241,6 +255,7 @@ def main():
     parser.add_argument('--num-gpus', help='Number of GPUs (default: %(default)s)', default=1, type=int, metavar='N')
     parser.add_argument('--total-kimg', help='Training length in thousands of images (default: %(default)s)', metavar='KIMG', default=25000, type=int)
     parser.add_argument('--gamma', help='R1 regularization weight (default is config dependent)', default=None, type=float)
+    parser.add_argument('--sv-factors', help='Number of singular values to use for SV config (default: all)', default=0, type=int)
     parser.add_argument('--mirror-augment', help='Mirror augment (default: %(default)s)', default=False, metavar='BOOL', type=_str_to_bool)
     parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid1k', type=_parse_comma_sep)
     parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')

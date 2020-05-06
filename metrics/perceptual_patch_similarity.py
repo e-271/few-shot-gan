@@ -79,7 +79,7 @@ class LPIPS(metric_base.MetricBase):
                 # Evaluate perceptual distance.
                 if images.shape[1] == 1: images = tf.concat([images]*3, axis=1)
                 img_e0, img_e1 = images[0::2], images[1::2]
-                distance_measure = misc.load_pkl('./pickles/vgg16_zhang_perceptual.pkl')
+                distance_measure = misc.load_pkl('/work/newriver/erobb/pickles/vgg16_zhang_perceptual.pkl')
                 distance_expr.append(distance_measure.get_output_for(img_e0, img_e1)) 
 
         # Sampling loop.

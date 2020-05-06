@@ -177,17 +177,24 @@ def training_loop(
             AE.print_layers()
 
     # SVD stuff
-    if True:
-        # Run graph to calculate things?
-        grid_latents_smol = np.random.randn(4, *G.input_shape[1:])
+    if 'svd' in G_args:
+        # Run graph to calculate SVD
+        grid_latents_smol = np.random.randn(1, *G.input_shape[1:])
         rho = np.array([1])
-        grid_fakes = G.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
+        grid_fakes = G.run(grid_latents_smol, grid_labels, rho, is_validation=True)
         misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_init_rG.png'), drange=drange_net, grid_size=(2,2))
-        grid_fakes = Gs.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
+        grid_fakes = Gs.run(grid_latents_smol, grid_labels, rho, is_validation=True)
         misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_init_rGs.png'), drange=drange_net, grid_size=(2,2))
+        load_d_fake = D.run(grid_reals[:1], rho, is_validation=True)
         with tf.device('/gpu:0'):
             # Create SVD-decomposed graph
             rG, rD, rGs = G, D, Gs
+
+            G_lambda_mask = {var: np.ones(G.vars[var].shape[-1]) for var in G.vars if 'SVD/s' in var}
+            D_lambda_mask = {'D/' + var: np.ones(D.vars[var].shape[-1]) for var in D.vars if 'SVD/s' in var}
+            G_args['lambda_mask'] = G_lambda_mask
+            D_args['lambda_mask'] = D_lambda_mask
+
             G = tflib.Network('G', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, factorized=True, **G_args)
             D = tflib.Network('D', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, factorized=True, **D_args)
             Gs = G.clone('Gs')
@@ -200,11 +207,32 @@ def training_loop(
             G.copy_vars_from(rG)
             D.copy_vars_from(rD)
             Gs.copy_vars_from(rGs)
+            misc.save_pkl((G, D, Gs), resume_pkl[:-4] + '_svd.pkl')
+            #exit(0)
 
-    grid_fakes = G.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
-    misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_loaded_G.png'), drange=drange_net, grid_size=(2,2))
-    grid_fakes = Gs.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
-    misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_loaded_Gs.png'), drange=drange_net, grid_size=(2,2))
+
+        grid_latents4 = np.random.randn(4, *G.input_shape[1:])
+        for var in []: #G_lambda_mask.keys():
+            for sv in range(10):
+                name = var.replace('/','')[:-4]
+                for i, n in enumerate([-5, -1, 0, 1, 2, 3, 5]):
+                    G_lambda_mask[var][sv] = n
+                    grid_fakes = G.run(grid_latents4, grid_labels, rho, lambda_mask=G_lambda_mask, is_validation=True, minibatch_size=1)
+                    misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('%s_%d%d_sv%d*=%d.png' % (name, sv, i, sv, n)), drange=drange_net, grid_size=(2,2))
+                G_lambda_mask[var][sv] = 1
+
+
+        grid_fakes = G.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
+        misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_loaded_G.png'), drange=drange_net, grid_size=(2,2))
+        grid_fakes = Gs.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
+        misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_loaded_Gs.png'), drange=drange_net, grid_size=(2,2))
+        load_d_fake = rD.run(grid_fakes, rho, is_validation=True)
+        d_fake = D.run(grid_fakes, rho, is_validation=True)
+        d_real = D.run(grid_reals[:1], rho, is_validation=True)
+        assert load_d_fake[0][0] ==d_fake[0][0]
+        print('Fake', d_fake, 'real', d_real)
+
+
 
     # Print layers and generate initial image snapshot.
     G.print_layers(); D.print_layers()

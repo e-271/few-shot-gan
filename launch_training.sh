@@ -4,7 +4,7 @@
 # ./launch_training.sh N kimg model loss tx eval dir pt idx
 
 if (( $# < 7 )); then
-    echo "Usage: ./launch_training.sh N kimg model gloss dloss tx eval dir (kw_num) (gpu)"
+    echo "Usage: ./launch_training.sh N kimg model gloss dloss tx eval dir kw_num gpu dbg"
     exit 1
 fi
 
@@ -19,6 +19,7 @@ ev=$7
 dir=$8
 kwn=$9 
 gpu=${10}
+dbg=${11}
 #pt=$9
 #i=$10
 
@@ -89,31 +90,35 @@ i=0
 echo "automatically choosing pretrain"
 if [[ $tx == *"KannadaHnd"* ]]
 then
-pt='./pickles/mnist.pkl'
+pt='/work/newriver/erobb/pickles/EngFnt.pkl'
+elif [[ $tx == *"EngHnd"* ]]
+then
+pt='/work/newriver/erobb/pickles/EngFnt.pkl'
 elif [[ $tx == *"mnist"* ]]
 then
-pt='./pickles/EngFnt.pkl'
+pt='/work/newriver/erobb/pickles/EngFnt.pkl'
 elif [[ $tx == *"EngFnt"* ]]
 then
-pt='./pickles/mnist.pkl'
+pt='/work/newriver/erobb/pickles/EngFnt.pkl' # TODO
 elif [[ $tx == *"tower"* ]]
 then
-pt='./pickles/church-config-f.pkl'
+pt='/work/newriver/erobb/pickles/church-config-f.pkl'
 elif [[ $tx == *"bus"* ]]
 then
-pt='./pickles/car-config-f.pkl'
+pt='/work/newriver/erobb/pickles/car-config-f.pkl'
 elif [[ $tx == *"dog"* ]]
 then
-pt='./pickles/cat-config-f.pkl'
-elif [[ $tx == *"danbooru"* ]] || [[ $tx == "anime"* ]] || [[ $tx == "rei"* ]] || [[ $tx == "obama"* ]]
+pt='/work/newriver/erobb/pickles/cat-config-f.pkl'
+elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]]
 then
-pt='./pickles/ffhq-config-f.pkl'
+pt='/work/newriver/erobb/pickles/ffhq-config-f.pkl'
 fi
 fi
 
 echo $i $pt
 
 
+sv=0
 # Vanilla GAN baseline
 if [[ $model == "v" ]]
 then
@@ -134,11 +139,26 @@ then
 lr=0.0003
 cfg="config-ra"
 
-elif [[ $model == "d" ]]
+elif [[ $model == "sv" ]]
 then
 lr=0.003
-cfg="config-ra" # TODO
+cfg="config-sv"
+pt=$(echo $pt | sed 's/\.pkl/_svd\.pkl/1')
+sv=0
 
+elif [[ $model == "svp" ]]
+then
+lr=0.003
+cfg="config-sv-pkl"
+sv=0
+
+fi
+
+
+if (( $dbg )); then
+metrics="fid1k"
+else
+metrics="fid10k,ppgs10k,lpips10k"
 fi
 
 
@@ -160,6 +180,7 @@ python run_training.py \
 --resume-kimg=$i \
 --lrate-base=$lr \
 --result-dir=$rdir/$(basename $tx) \
+--sv-factors=$sv \
 --metrics=fid1k"
 
 
@@ -179,6 +200,7 @@ python run_training.py \
 --resume-kimg=$i \
 --lrate-base=$lr \
 --result-dir=$rdir/$(basename $tx) \
-#--metrics=fid10k,ppgs10k,lpips10k
+--sv-factors=$sv \
+--metrics=$metrics
 
 echo "done."
