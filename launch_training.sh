@@ -17,7 +17,7 @@ dloss=$5
 tx=$6
 ev=$7
 dir=$8
-kwn=$9 
+kwn=$9
 gpu=${10}
 dbg=${11}
 #pt=$9
@@ -76,11 +76,11 @@ echo $loss
 
 if [[ $(hostname) == "jb"* ]]; # RTX
 then
-ddir='/work/erobb/datasets/'
-rdir="/work/erobb/results/$dir"
+ddir='/work/jiaruixu/datasets/'
+rdir="/work/jiaruixu/results/$dir"
 else # ARC
-ddir='/work/newriver/erobb/datasets'
-rdir="/work/newriver/erobb/results/$dir"
+ddir='/work/newriver/jiaruixu/datasets'
+rdir="/work/newriver/jiaruixu/results/$dir"
 fi
 
 pt=""
@@ -90,28 +90,28 @@ i=0
 echo "automatically choosing pretrain"
 if [[ $tx == *"KannadaHnd"* ]]
 then
-pt='/work/newriver/erobb/pickles/EngFnt.pkl'
+pt='/work/newriver/jiaruixu/pickles/EngFnt.pkl'
 elif [[ $tx == *"EngHnd"* ]]
 then
-pt='/work/newriver/erobb/pickles/EngFnt.pkl'
+pt='/work/newriver/jiaruixu/pickles/EngFnt.pkl'
 elif [[ $tx == *"mnist"* ]]
 then
-pt='/work/newriver/erobb/pickles/EngFnt.pkl'
+pt='/work/newriver/jiaruixu/pickles/EngFnt.pkl'
 elif [[ $tx == *"EngFnt"* ]]
 then
-pt='/work/newriver/erobb/pickles/EngFnt.pkl' # TODO
+pt='/work/newriver/jiaruixu/pickles/EngFnt.pkl' # TODO
 elif [[ $tx == *"tower"* ]]
 then
-pt='/work/newriver/erobb/pickles/church-config-f.pkl'
+pt='/work/newriver/jiaruixu/pickles/church-config-f.pkl'
 elif [[ $tx == *"bus"* ]]
 then
-pt='/work/newriver/erobb/pickles/car-config-f.pkl'
+pt='/work/newriver/jiaruixu/pickles/car-config-f.pkl'
 elif [[ $tx == *"dog"* ]]
 then
-pt='/work/newriver/erobb/pickles/cat-config-f.pkl'
+pt='/work/newriver/jiaruixu/pickles/cat-config-f.pkl'
 elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]]
 then
-pt='/work/newriver/erobb/pickles/ffhq-config-f.pkl'
+pt='/work/newriver/jiaruixu/pickles/ffhq-config-f.pkl'
 fi
 fi
 
