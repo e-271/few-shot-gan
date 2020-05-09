@@ -49,12 +49,12 @@ def dense_layer(x, fmaps, gain=1, use_wscale=True, lrmul=1, weight_var='weight',
         x = tf.reshape(x, [-1, np.prod([d.value for d in x.shape[1:]])])
     if factorized:
         sv = min(x.shape[1].value, fmaps)
-        kf = min(sv, sv_factors) if sv_factors != 0 else sv
+        kf = sv #min(sv, sv_factors) if sv_factors != 0 else sv
         k = tf.get_variable('SVD/adapt/lambda', shape=[kf], initializer=tf.initializers.ones())
         s = tf.get_variable("SVD/s", shape=[sv])
         u = tf.get_variable("SVD/u", shape=[x.shape[1].value, sv])
         v = tf.get_variable("SVD/v", shape=[fmaps, sv])
-        if kf < sv:
+        if kf > 0 and kf < sv:
             k = tf.concat([k, tf.get_variable('SVD/lambda', shape=[sv - kf], initializer=tf.initializers.ones())], axis=0)
         name = re.sub('_[0-9]/', '/', s.name).split(':')[0]
         if name in lambda_mask: k = k * lambda_mask[name]
@@ -84,12 +84,12 @@ def dense_layer(x, fmaps, gain=1, use_wscale=True, lrmul=1, weight_var='weight',
 def _get_conv_w(x, fmaps, kernel, gain, use_wscale, lrmul, weight_var, svd, factorized, sv_factors, lambda_mask):
     if factorized:
         sv = min(x.shape[1].value, fmaps)
-        kf = sv_factors if sv_factors != None else sv # Dimension reduction factor
+        kf = sv #sv_factors if sv_factors != None else sv # Dimension reduction factor
         k = tf.get_variable('SVD/adapt/lambda', shape=[kernel, kernel, kf], initializer=tf.initializers.ones())
         s = tf.get_variable("SVD/s", shape=[kernel, kernel, sv])
         u = tf.get_variable("SVD/u", shape=[kernel, kernel, x.shape[1].value, sv])
         v = tf.get_variable("SVD/v", shape=[kernel, kernel, fmaps, sv])
-        if kf < sv:
+        if kf > 0 and kf < sv:
             k = tf.concat([k, tf.get_variable('SVD/lambda', shape=[kernel, kernel, sv - kf], initializer=tf.initializers.ones())], axis=2)
         name = re.sub('_[0-9]/', '/', s.name).split(':')[0]
         if name in lambda_mask: k = k * lambda_mask[name]
