@@ -166,7 +166,6 @@ def training_loop(
             Gs = G.clone('Gs')
         if resume_pkl is not '':
             print('Loading networks from "%s"...' % resume_pkl)
-            import pdb; pdb.set_trace()
             rG, rD, rGs = misc.load_pkl(resume_pkl)
             if resume_with_new_nets: 
                 G.copy_vars_from(rG); 

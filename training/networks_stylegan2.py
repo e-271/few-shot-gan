@@ -26,10 +26,6 @@ layer_toggle = None
 # Get/create weight tensor for a convolution or fully-connected layer.
 
 def get_weight(shape, gain=1, use_wscale=True, lrmul=1, weight_var='weight', init=None):
-    curframe = inspect.currentframe()
-    calframe = inspect.getouterframes(curframe, 2)
-    print('caller name:', calframe[1][3], calframe[2][3], calframe[3][3], calframe[4][3], calframe[5][3])
-    print('shape:', shape)
     fan_in = np.prod(shape[:-1]) # [kernel, kernel, fmaps_in, fmaps_out] or [in, out]
     he_std = gain / np.sqrt(fan_in) # He init
 
@@ -459,7 +455,6 @@ def G_mapping(
         _x = dense_layer(x[:, :latent_size], fmaps=fmaps, lrmul=mapping_lrmul)
         if label_size > 0:
             with tf.variable_scope('label/adapt'):
-                print('adapt/x shape', x[:, latent_size:].shape)
                 y = dense_layer(x[:, latent_size:], fmaps=fmaps, lrmul=mapping_lrmul)
                 _x += y
         x = apply_bias_act(_x, act=act, lrmul=mapping_lrmul)
