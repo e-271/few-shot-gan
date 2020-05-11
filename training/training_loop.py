@@ -166,6 +166,7 @@ def training_loop(
             Gs = G.clone('Gs')
         if resume_pkl is not '':
             print('Loading networks from "%s"...' % resume_pkl)
+            import pdb; pdb.set_trace()
             rG, rD, rGs = misc.load_pkl(resume_pkl)
             if resume_with_new_nets: 
                 G.copy_vars_from(rG); 
@@ -196,8 +197,9 @@ def training_loop(
             G_args['lambda_mask'] = G_lambda_mask
             D_args['lambda_mask'] = D_lambda_mask
 
-            G = tflib.Network('G', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, factorized=True, **G_args)
-            D = tflib.Network('D', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, factorized=True, **D_args)
+            
+            G = tflib.Network('G', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=rG.input_shapes[1][1], factorized=True, **G_args)
+            D = tflib.Network('D', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=rD.input_shapes[1][1], factorized=True, **D_args)
             Gs = G.clone('Gs')
 
             grid_fakes = G.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)

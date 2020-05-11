@@ -21,7 +21,7 @@ class TFRecordDataset:
         tfrecord_dir,               # Directory containing a collection of tfrecords files.
         resolution      = None,     # Dataset resolution, None = autodetect.
         label_file      = None,     # Relative path of the labels file, None = autodetect.
-        max_label_size  = 0,        # 0 = no labels, 'full' = full labels, <int> = N first label components.
+        max_label_size  = 'full',        # 0 = no labels, 'full' = full labels, <int> = N first label components.
         max_images      = None,     # Maximum number of images to use, None = use all images.
         repeat          = True,     # Repeat dataset indefinitely?
         shuffle_mb      = 4096,     # Shuffle data within specified window (megabytes), 0 = disable shuffling.

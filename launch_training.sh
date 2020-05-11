@@ -112,7 +112,14 @@ pt='/work/newriver/erobb/pickles/cat-config-f.pkl'
 elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]]
 then
 pt='/work/newriver/erobb/pickles/ffhq-config-f.pkl'
+elif [[ $tx == *"cifar100"* ]]
+then
+pt='/work/newriver/erobb/pickles/cifar10_uncond.pkl'
 fi
+
+
+
+
 fi
 
 echo $i $pt
@@ -181,7 +188,7 @@ python run_training.py \
 --lrate-base=$lr \
 --result-dir=$rdir/$(basename $tx) \
 --sv-factors=$sv \
---metrics=fid1k"
+--metrics=$(metrics)"
 
 
 CUDA_VISIBLE_DEVICES=$gpu \
