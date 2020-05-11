@@ -23,11 +23,12 @@ class TFRecordDataset:
         label_file      = None,     # Relative path of the labels file, None = autodetect.
         max_label_size  = 'full',        # 0 = no labels, 'full' = full labels, <int> = N first label components.
         max_images      = None,     # Maximum number of images to use, None = use all images.
+        skip_images     = None,     # Number of images to skip, None = start at beginning.
         repeat          = True,     # Repeat dataset indefinitely?
         shuffle_mb      = 4096,     # Shuffle data within specified window (megabytes), 0 = disable shuffling.
         prefetch_mb     = 2048,     # Amount of data to prefetch (megabytes), 0 = disable prefetching.
         buffer_mb       = 256,      # Read buffer size (megabytes).
-        num_threads     = 2):       # Number of concurrent threads.
+        num_threads     = 2):        # Number of concurrent threads.
 
         self.tfrecord_dir       = tfrecord_dir
         self.resolution         = None
@@ -89,7 +90,9 @@ class TFRecordDataset:
             assert self._np_labels.ndim == 2
         if max_label_size != 'full' and self._np_labels.shape[1] > max_label_size:
             self._np_labels = self._np_labels[:, :max_label_size]
-        if max_images is not None and self._np_labels.shape[0] > max_images:
+        if skip_images is not None: # and self._np_labels.shape[0] > skip_images:
+            self._np_labels = self._np_labels[skip_images:]
+        if max_images is not None: # and self._np_labels.shape[0] > max_images:
             self._np_labels = self._np_labels[:max_images]
         self.label_size = self._np_labels.shape[1]
         self.label_dtype = self._np_labels.dtype.name
@@ -103,6 +106,8 @@ class TFRecordDataset:
                 if tfr_lod < 0:
                     continue
                 dset = tf.data.TFRecordDataset(tfr_file, compression_type='', buffer_size=buffer_mb<<20)
+                if skip_images is not None:
+                    dset = dset.skip(skip_images)
                 if max_images is not None:
                     dset = dset.take(max_images)
                 dset = dset.map(self.parse_tfrecord_tf, num_parallel_calls=num_threads)
@@ -175,6 +180,10 @@ class TFRecordDataset:
         shape = ex.features.feature['shape'].int64_list.value # pylint: disable=no-member
         data = ex.features.feature['data'].bytes_list.value[0] # pylint: disable=no-member
         return np.fromstring(data, np.uint8).reshape(shape)
+
+
+    def split(frac):
+        test_dataset = self._
 
 #----------------------------------------------------------------------------
 # Helper func for constructing a dataset object using the given options.
