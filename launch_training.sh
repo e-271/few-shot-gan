@@ -149,20 +149,28 @@ then
 lr=0.0003
 cfg="config-ra"
 
-elif [[ $model == "sv" ]]
+#elif [[ $model == "sv" ]]
+#then
+#lr=0.003
+#cfg="config-sv"
+#pt=$(echo $pt | sed 's/\.pkl/_svd\.pkl/1')
+#sv=0
+
+elif [[ $model == "svm" ]]
 then
 lr=0.003
-cfg="config-sv"
-pt=$(echo $pt | sed 's/\.pkl/_svd\.pkl/1')
+cfg="config-sv-map"
 sv=0
 
-elif [[ $model == "svp" ]]
+elif [[ $model == "svs" ]]
 then
 lr=0.003
-cfg="config-sv-pkl"
+cfg="config-sv-syn"
 sv=0
 
 fi
+
+
 
 
 if (( $dbg )); then

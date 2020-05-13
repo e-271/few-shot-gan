@@ -178,39 +178,37 @@ def training_loop(
 
     grid_latents = np.random.randn(np.prod(grid_size), *G.input_shape[1:])
     # SVD stuff
-    if 'svd' in G_args:
+    if 'syn_svd' in G_args or 'map_svd' in G_args:
         # Run graph to calculate SVD
-        grid_latents_smol = grid_latents[:1] #np.random.randn(1, *G.input_shape[1:])
+        grid_latents_smol = grid_latents[:1] 
         rho = np.array([1])
         grid_fakes = G.run(grid_latents_smol, grid_labels, rho, is_validation=True)
-        misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_init_rG.png'), drange=drange_net, grid_size=(2,2))
+        #misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_init_rG.png'), drange=drange_net, grid_size=(2,2))
         grid_fakes = Gs.run(grid_latents_smol, grid_labels, rho, is_validation=True)
-        misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_init_rGs.png'), drange=drange_net, grid_size=(2,2))
+        #misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_init_rGs.png'), drange=drange_net, grid_size=(2,2))
         load_d_fake = D.run(grid_reals[:1], rho, is_validation=True)
         with tf.device('/gpu:0'):
             # Create SVD-decomposed graph
             rG, rD, rGs = G, D, Gs
-
             G_lambda_mask = {var: np.ones(G.vars[var].shape[-1]) for var in G.vars if 'SVD/s' in var}
             D_lambda_mask = {'D/' + var: np.ones(D.vars[var].shape[-1]) for var in D.vars if 'SVD/s' in var}
             G_args['lambda_mask'] = G_lambda_mask
             D_args['lambda_mask'] = D_lambda_mask
 
-            
+            # Create graph with no SVD operations
             G = tflib.Network('G', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=rG.input_shapes[1][1], factorized=True, **G_args)
             D = tflib.Network('D', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=rD.input_shapes[1][1], factorized=True, **D_args)
             Gs = G.clone('Gs')
 
             grid_fakes = G.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
-            misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_init_G.png'), drange=drange_net, grid_size=(2,2))
+            #misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_init_G.png'), drange=drange_net, grid_size=(2,2))
             grid_fakes = Gs.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
-            misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_init_Gs.png'), drange=drange_net, grid_size=(2,2))
+            #misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_init_Gs.png'), drange=drange_net, grid_size=(2,2))
 
             G.copy_vars_from(rG)
             D.copy_vars_from(rD)
             Gs.copy_vars_from(rGs)
             misc.save_pkl((G, D, Gs), resume_pkl[:-4] + '_svd.pkl')
-            #exit(0)
 
 
         grid_latents4 = grid_latents[:4] #np.random.randn(4, *G.input_shape[1:])

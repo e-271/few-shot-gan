@@ -29,8 +29,8 @@ _valid_configs = [
     # Adaptive
     'config-ss',
     'config-ra',
-    'config-sv-pkl', # Create the initial SVD graph from pretrained weights
-    'config-sv', # Load an existing SVD graph and train
+    'config-sv-map',
+    'config-sv-syn',
     'config-ae',
 
     #'config-a-gb',
@@ -163,7 +163,7 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
 
     train.resume_with_new_nets = True # Recreate with new parameters
     # Adaptive parameter configurations
-    if config_id in ['config-ss', 'config-ra', 'config-sv', 'config-sv-pkl', 'config-ae']:
+    if config_id in ['config-ss', 'config-ra', 'config-sv', 'config-sv-syn', 'config-sv-map', 'config-ae']:
         G['train_scope'] = D['train_scope'] = '.*/adapt' # Freeze old parameters
         train.resume_with_new_nets = True # Recreate with new adaptive parameters
         if config_id == 'config-ss': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
@@ -171,11 +171,13 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
         if config_id[:9] == 'config-sv':
             G['sv_factors'] = D['sv_factors'] = sv_factors
             desc += '-%dsv' % sv_factors
-            if config_id == 'config-sv':
-                G['factorized'] = D['factorized'] = True
-            elif config_id == 'config-sv-pkl':
-                G['svd'] = D['svd'] = True
-
+            # TODO fix this or delete it
+            #if config_id == 'config-sv':
+            #    G['factorized'] = D['factorized'] = True
+            if config_id == 'config-sv-syn':
+                G['syn_svd'] = D['svd'] = True
+            elif config_id == 'config-sv-map':
+                G['map_svd'] = D['svd'] = True
 
         # TODO Clean up or remove this, it doesn't work?
         if g_loss == 'G_logistic_ns_pathreg_ae': 
