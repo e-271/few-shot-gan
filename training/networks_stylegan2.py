@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2019, NVIDIA Corporation. All rights reserved.
+# Copyright (c) 2019, NVIDIA Corporation. All rights reserved.
 #
 # This work is made available under the Nvidia Source Code License-NC.
 # To view a copy of this license, visit
@@ -60,7 +60,7 @@ def dense_layer(x, fmaps, gain=1, use_wscale=True, lrmul=1, weight_var='weight',
         name = re.sub('_[0-9]/', '/', s.name).split(':')[0]
         if name in lambda_mask: k = k * lambda_mask[name]
         else: "%s not found in lambda mask, ignoring..." % name
-        w = tf.matmul(tf.matmul(u, tf.linalg.diag(k * s)), tf.transpose(v, perm=[1, 0]))        
+        w = tf.matmul(tf.matmul(u, tf.linalg.diag(k * s)), tf.transpose(v, perm=[1, 0]))
     else:
         w = get_weight([x.shape[1].value, fmaps], gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
         if svd:
@@ -204,7 +204,7 @@ def apply_adaptive_mp_residual_scale_shift(x, x_prev, rho_in=None):
 
 def apply_adaptive_residual_scale(x, x_prev):
     if x.shape[2] > x_prev.shape[2]:
-        return x 
+        return x
         #g = tf.layers.Conv2DTranspose(x.shape[1], 1, [2,2], 'same', data_format='channels_first', use_bias=False, kernel_initializer=tf.initializers.ones())(x_prev)
     elif x.shape[2] < x_prev.shape[2]:
         return x
@@ -275,7 +275,7 @@ def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate
         x = conv_downsample_2d(x, tf.cast(w, x.dtype), data_format='NCHW', k=resample_kernel)
     else:
         x = tf.nn.conv2d(x, tf.cast(w, x.dtype), data_format='NCHW', strides=[1,1,1,1], padding='SAME')
- 
+
     # Reshape/scale output.
     if fused_modconv:
         x = tf.reshape(x, [-1, fmaps, x.shape[2], x.shape[3]]) # Fused => reshape convolution groups back to minibatch.
@@ -426,6 +426,12 @@ def G_mapping(
     mapping_nonlinearity    = 'lrelu',      # Activation function: 'relu', 'lrelu', etc.
     normalize_latents       = True,         # Normalize latent vectors (Z) before feeding them to the mapping layers?
     dtype                   = 'float32',    # Data type to use for activations and outputs.
+    ## add by JR
+    svd                     = False,
+    factorized              = False,
+    sv_factors              = 0,
+    lambda_mask             = None,
+    ## end add by JR
     **_kwargs):                             # Ignore unrecognized keyword args.
 
     act = mapping_nonlinearity
@@ -436,6 +442,12 @@ def G_mapping(
     latents_in = tf.cast(latents_in, dtype)
     labels_in = tf.cast(labels_in, dtype)
     x = latents_in
+
+    ## add by JR
+    # @todo debug the lambda_mask here
+    if lambda_mask == None:
+        lambda_mask = {layer_idx: tf.ones(dlatent_size) if layer_idx == mapping_layers - 1 else tf.ones(mapping_fmaps) for layer_idx in range(mapping_layers)}
+    ## end add by JR
 
     # Embed labels and concatenate them with latents.
     if label_size:
@@ -463,7 +475,16 @@ def G_mapping(
     for layer_idx in range(0, mapping_layers):
         with tf.variable_scope('Dense%d' % layer_idx):
             fmaps = dlatent_size if layer_idx == mapping_layers - 1 else mapping_fmaps
-            x = apply_bias_act(dense_layer(x, fmaps=fmaps, lrmul=mapping_lrmul), act=act, lrmul=mapping_lrmul)
+            ## add by JR
+            # x = apply_bias_act(dense_layer(x, fmaps=fmaps, lrmul=mapping_lrmul), act=act, lrmul=mapping_lrmul)
+            x = apply_bias_act(dense_layer(x,
+                                           fmaps=fmaps,
+                                           lrmul=mapping_lrmul,
+                                           svd=svd,
+                                           factorized=factorized,
+                                           sv_factors=sv_factors,
+                                           lambda_mask=lambda_mask), act=act, lrmul=mapping_lrmul)
+            ## end add by JR
 
     # Broadcast.
     if dlatent_broadcast is not None:
@@ -627,7 +648,7 @@ def G_synthesis_stylegan2(
     rho_in = tf.cast(rho_in, dtype)
     dlatents_in.set_shape([None, num_layers, dlatent_size])
     dlatents_in = tf.cast(dlatents_in, dtype)
-    
+
     if lambda_mask == None:
         lambda_mask = {2**res: tf.ones(nf(res-1)) for res in range(2, resolution_log2 + 1)}
 
@@ -729,7 +750,7 @@ def D_stylegan(
     adapt_func          = 'training.networks_stylegan2.apply_identity', # Scale func for modulated conv2d.
     **_kwargs):                         # Ignore unrecognized keyword args.
 
-    resolution_lag2 = int(np.log2(resolution))
+    resolution_log2 = int(np.log2(resolution))
     assert resolution == 2**resolution_log2 and resolution >= 4
     def nf(stage): return np.clip(int(fmap_base / (2.0 ** (stage * fmap_decay))), fmap_min, fmap_max)
     if structure == 'auto': structure = 'linear' if is_template_graph else 'recursive'
@@ -849,7 +870,7 @@ def D_stylegan2(
     if lambda_mask == None:
         lambda_mask = {2**res: tf.ones(nf(res-1)) for res in range(2, resolution_log2 + 1)}
 
-   
+
     # Building blocks for main layers.
     def fromrgb(x, y, res): # res = 2..resolution_log2
         with tf.variable_scope('FromRGB'):
@@ -984,4 +1005,3 @@ def AE(
     x = apply_bias_act(conv2d_layer(x, fmaps=num_channels, kernel=1))
 
     return x
-
