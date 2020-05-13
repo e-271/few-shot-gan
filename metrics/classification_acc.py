@@ -89,16 +89,16 @@ class CAS(metric_base.MetricBase):
         tf.set_random_seed(123)
         # Split the evaluation set into train / val partitions for the classifier.
         train_set, val_set = self._get_partitioned_dataset_obj()
-        reals, labels = self._get_minibatch_tf(train_set)
+        reals, reals_labels = self._get_minibatch_tf(train_set)
         val_reals, val_labels = self._get_minibatch_tf(val_set)
         # Create classifier
-        assert labels.shape[1] > 0
-        reals_cls = self._create_classifier(labels.shape[1])
+        assert reals_labels.shape[1] > 0
+        reals_cls = self._create_classifier(reals_labels.shape[1])
         steps = self.num_images // self.minibatch_per_gpu
 
         # Train on reals
         print('Training classifier on reals...')
-        reals_cls.fit(reals, labels, steps_per_epoch=steps, epochs=1)
+        reals_cls.fit(reals, reals_labels, steps_per_epoch=steps, epochs=1)
         print('Eval acc...')
         _, reals_acc = reals_cls.evaluate(val_reals, val_labels, steps=steps)
 
@@ -108,15 +108,16 @@ class CAS(metric_base.MetricBase):
         latents = tf.random_normal([self.minibatch_per_gpu] + Gs.input_shape[1:])
         fakes_labels = self._get_random_labels_tf(self.minibatch_per_gpu)
         # TODO should roughly lie in [-1, 1] but should I rescale it for the classifier? See if it makes a difference.
-        fakes = Gs.get_output_for(latents, labels, np.array([rho]), **Gs_kwargs)
+        fakes = Gs.get_output_for(latents, fakes_labels, np.array([rho]), **Gs_kwargs)
         fakes = tf.image.resize(tf.transpose(fakes, [0, 2, 3, 1]), self.img_size)
 
         # Train on gen
         print('Training classifier on fakes...')
-        fakes_cls = self._create_classifier(labels.shape[1])
+        fakes_cls = self._create_classifier(fakes_labels.shape[1])
         fakes_cls.fit(fakes, fakes_labels, steps_per_epoch=steps, epochs=1)
         print('Eval acc...')
         _, fakes_acc = fakes_cls.evaluate(val_reals, val_labels, steps=steps)
 
-        #self.test(fakes_cls, fakes, fakes_labels)
+        self.test(reals_cls, reals, reals_labels)
+        self.test(fakes_cls, fakes, fakes_labels)
         self._report_result(reals_acc - fakes_acc)

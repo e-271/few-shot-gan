@@ -60,7 +60,6 @@ def D_logistic_r1(G, D, opt, training_set, minibatch_size, reals, labels, gamma=
     fake_scores_out = autosummary('Loss/scores/fake', fake_scores_out)
     loss = tf.nn.softplus(fake_scores_out) # -log(1-sigmoid(fake_scores_out))
     loss += tf.nn.softplus(-real_scores_out) # -log(sigmoid(real_scores_out)) # pylint: disable=invalid-unary-operand-type
-
     with tf.name_scope('GradientPenalty'):
         real_grads = tf.gradients(tf.reduce_sum(real_scores_out), [reals])[0]
         gradient_penalty = tf.reduce_sum(tf.square(real_grads), axis=[1,2,3])
@@ -404,7 +403,6 @@ def _G_logistic_ns_gsreg(G, D, opt, training_set, minibatch_size, pl_minibatch_s
         images = tf.cast(images, tf.float32)
         img_e0, img_e1 = images[0::2], images[1::2]
         dist = norm(img_e0 - img_e1) / epsilon # TODO(me): Are these dimensions correct? It might not complain...
-        #import pdb; pdb.set_trace()
         sparsity = gini_index(dist)
         dist = autosummary('Loss/dist_eps', dist)
         sparsity = autosummary('Loss/sparsity', sparsity)

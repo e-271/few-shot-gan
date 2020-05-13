@@ -410,7 +410,7 @@ def G_main(
 
 #----------------------------------------------------------------------------
 # Mapping network.
-# Transforms the input latent code (z) to the disentangled latent code (w).
+## Transforms the input latent code (z) to the disentangled latent code (w).
 # Used in configs B-F (Table 1).
 
 def G_mapping(
@@ -450,17 +450,17 @@ def G_mapping(
             x *= tf.rsqrt(tf.reduce_mean(tf.square(x), axis=1, keepdims=True) + 1e-8)
 
     # First mapping layer
-    with tf.variable_scope('Dense0'):
-        fmaps = dlatent_size if mapping_layers == 1 else mapping_fmaps
-        _x = dense_layer(x[:, :latent_size], fmaps=fmaps, lrmul=mapping_lrmul)
-        if label_size > 0:
-            with tf.variable_scope('label/adapt'):
-                y = dense_layer(x[:, latent_size:], fmaps=fmaps, lrmul=mapping_lrmul)
-                _x += y
-        x = apply_bias_act(_x, act=act, lrmul=mapping_lrmul)
+    #with tf.variable_scope('Dense0'):
+    #    fmaps = dlatent_size if mapping_layers == 1 else mapping_fmaps
+    #    _x = dense_layer(x[:, :latent_size], fmaps=fmaps, lrmul=mapping_lrmul)
+    #    if label_size > 0:
+    #        with tf.variable_scope('label/adapt'):
+    #            y = dense_layer(x[:, latent_size:], fmaps=fmaps, lrmul=mapping_lrmul)
+    #            _x += y
+    #    x = apply_bias_act(_x, act=act, lrmul=mapping_lrmul)
 
     # Mapping layers.
-    for layer_idx in range(1, mapping_layers):
+    for layer_idx in range(0, mapping_layers):
         with tf.variable_scope('Dense%d' % layer_idx):
             fmaps = dlatent_size if layer_idx == mapping_layers - 1 else mapping_fmaps
             x = apply_bias_act(dense_layer(x, fmaps=fmaps, lrmul=mapping_lrmul), act=act, lrmul=mapping_lrmul)
@@ -895,7 +895,7 @@ def D_stylegan2(
 
     if cos_output:
         # TODO: assumes no labels
-        with tf.variable_scope('adapt'):
+        with tf.variable_scope('adapt/CosSim'):
             wr = get_weight([x.shape[1].value], use_wscale=False, weight_var='class_real')
             wf = get_weight([x.shape[1].value], use_wscale=False, weight_var='class_fake')
             wr = tf.nn.l2_normalize(wr)
@@ -908,13 +908,22 @@ def D_stylegan2(
     else:
         # Output layer with label conditioning from "Which Training Methods for GANs do actually Converge?"
         if labels_in.shape[1] > 0:
+            # TODO: maybe prone to overfitting..
             with tf.variable_scope('adapt/Output'): # Need to re-learn label mapping in adaptation
-                x = apply_bias_act(dense_layer(x, fmaps=1, svd=False, factorized=False)) 
+                x = apply_bias_act(dense_layer(x, fmaps=labels_in.shape[1], svd=False, factorized=False)) 
                 x = tf.reduce_sum(x * labels_in, axis=1, keepdims=True)
         else:
             with tf.variable_scope('Output'):
                 x = apply_bias_act(dense_layer(x, fmaps=1, svd=svd, factorized=factorized, sv_factors=sv_factors, lambda_mask=lambda_mask))
         scores_out = x
+
+        #with tf.variable_scope('Output'):
+        #    x = apply_bias_act(dense_layer(x, fmaps=max(labels_in.shape[1], 1)))
+        #    if labels_in.shape[1] > 0:
+        #        x = tf.reduce_sum(x * labels_in, axis=1, keepdims=True)
+        #scores_out = x
+
+
 
     # Output.
     assert scores_out.dtype == tf.as_dtype(dtype)

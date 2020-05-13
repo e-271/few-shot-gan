@@ -237,16 +237,18 @@ def training_loop(
     # Print layers and generate initial image snapshot.
     G.print_layers(); D.print_layers()
     sched = training_schedule(cur_nimg=total_kimg*1000, training_set=training_set, **sched_args)
-    #grid_latents = np.random.randn(np.prod(grid_size), *G.input_shape[1:])
+    grid_latents = np.random.randn(np.prod(grid_size), *G.input_shape[1:])
     rho = np.array([1])
     grid_fakes = Gs.run(grid_latents, grid_labels, rho, is_validation=True, minibatch_size=sched.minibatch_gpu)
     misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('fakes_init.png'), drange=drange_net, grid_size=grid_size)
     if resume_pkl is not '':
-        load_d_fake = rD.run(grid_fakes[:1], rho, is_validation=True)
+        load_d_real = rD.run(grid_fakes[:1], rho, is_validation=True)
+        load_d_fake = rD.run(grid_reals[:1], rho, is_validation=True)
         d_fake = D.run(grid_fakes[:1], rho, is_validation=True)
         d_real = D.run(grid_reals[:1], rho, is_validation=True)
-        print('Fake', d_fake, 'real', d_real, 'lreal', load_d_fake)
-        assert load_d_fake[0][0] ==d_fake[0][0]
+        print('Fake', d_fake, 'lfake', load_d_fake, 'real', d_real, 'lreal', load_d_real)
+        #import pdb; pdb.set_trace()
+        #assert load_d_fake[0][0] ==d_fake[0][0]
 
 
 

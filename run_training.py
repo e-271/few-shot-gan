@@ -160,6 +160,8 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
         G = EasyDict(func_name='training.networks_stylegan.G_style')
         D = EasyDict(func_name='training.networks_stylegan.D_basic')
 
+
+    train.resume_with_new_nets = True # Recreate with new parameters
     # Adaptive parameter configurations
     if config_id in ['config-ss', 'config-ra', 'config-sv', 'config-sv-pkl', 'config-ae']:
         G['train_scope'] = D['train_scope'] = '.*/adapt' # Freeze old parameters

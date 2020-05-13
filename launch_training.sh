@@ -112,9 +112,12 @@ pt='/work/newriver/erobb/pickles/cat-config-f.pkl'
 elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]]
 then
 pt='/work/newriver/erobb/pickles/ffhq-config-f.pkl'
-elif [[ $tx == *"cifar100"* ]]
+elif [[ $tx == *"cifar10" ]]
 then
-pt='/work/newriver/erobb/pickles/cifar10_uncond.pkl'
+pt='/work/newriver/erobb/pickles/cifar100_cond.pkl'
+elif [[ $tx == *"cifar100" ]]
+then
+pt='/work/newriver/erobb/pickles/cifar10_cond.pkl'
 fi
 
 
@@ -163,9 +166,9 @@ fi
 
 
 if (( $dbg )); then
-metrics="fid1k"
+metrics="cas1k"
 else
-metrics="fid10k,ppgs10k,lpips10k"
+metrics="fid10k,ppgs10k,lpips10k,cas10k"
 fi
 
 
