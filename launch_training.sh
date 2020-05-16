@@ -83,6 +83,7 @@ ddir='/work/newriver/erobb/datasets'
 rdir="/work/newriver/erobb/results/$dir"
 fi
 
+metrics=""
 pt=""
 if [[ $pt == "" ]]
 then
@@ -115,9 +116,11 @@ pt='/work/newriver/erobb/pickles/ffhq-config-f.pkl'
 elif [[ $tx == *"cifar10" ]]
 then
 pt='/work/newriver/erobb/pickles/cifar100_cond.pkl'
+metrics='cas10k,'
 elif [[ $tx == *"cifar100" ]]
 then
 pt='/work/newriver/erobb/pickles/cifar10_cond.pkl'
+metrics='cas10k'
 fi
 
 
@@ -168,15 +171,22 @@ lr=0.003
 cfg="config-sv-syn"
 sv=0
 
+elif [[ $model == "sva" ]]
+then
+lr=0.003
+cfg="config-sv-all"
+sv=0
+
+
 fi
 
 
 
 
 if (( $dbg )); then
-metrics="cas1k"
+metrics="None"
 else
-metrics="fid10k,ppgs10k,lpips10k,cas10k"
+metrics="$(metrics)fid10k,ppgs10k,lpips10k"
 fi
 
 

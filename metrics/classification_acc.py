@@ -87,6 +87,8 @@ class CAS(metric_base.MetricBase):
     def _evaluate(self, Gs, Gs_kwargs, num_gpus, rho):
         np.random.seed(123)
         tf.set_random_seed(123)
+        os.environ['PYTHONHASHSEED']='123'
+        import random as rn; rn.seed(123)
         # Split the evaluation set into train / val partitions for the classifier.
         train_set, val_set = self._get_partitioned_dataset_obj()
         reals, reals_labels = self._get_minibatch_tf(train_set)

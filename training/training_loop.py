@@ -240,8 +240,8 @@ def training_loop(
     grid_fakes = Gs.run(grid_latents, grid_labels, rho, is_validation=True, minibatch_size=sched.minibatch_gpu)
     misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('fakes_init.png'), drange=drange_net, grid_size=grid_size)
     if resume_pkl is not '':
-        load_d_real = rD.run(grid_fakes[:1], rho, is_validation=True)
-        load_d_fake = rD.run(grid_reals[:1], rho, is_validation=True)
+        load_d_real = rD.run(grid_reals[:1], rho, is_validation=True)
+        load_d_fake = rD.run(grid_fakes[:1], rho, is_validation=True)
         d_fake = D.run(grid_fakes[:1], rho, is_validation=True)
         d_real = D.run(grid_reals[:1], rho, is_validation=True)
         print('Fake', d_fake, 'lfake', load_d_fake, 'real', d_real, 'lreal', load_d_real)
