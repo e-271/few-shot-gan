@@ -71,7 +71,7 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
     tf_config = {'rnd.np_random_seed': 1000}                                   # Options for tflib.init_tf().
     AE = AE_loss = AE_opt = None                                               # Default to no autoencoder. 
 
-    train.data_dir = data_dir
+
     train.total_kimg = total_kimg
     train.mirror_augment = mirror_augment
     train.image_snapshot_ticks = img_ticks
@@ -91,9 +91,18 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
 
 
     desc += '-' + dataset_train.split('/')[-1]
+    t_path = dataset_train.split('/')
+    e_path = dataset_eval.split('/')
+    if len(t_path) > 1:
+        dataset_train = t_path[-1]
+        train.train_data_dir = os.path.join(data_dir, '/'.join(t_path[:-1]))
+    if len(e_path) > 1:
+        dataset_eval = e_path[-1]
+        train.eval_data_dir = os.path.join(data_dir, '/'.join(e_path[:-1]))
     dataset_args = EasyDict(tfrecord_dir=dataset_train)
     dataset_args['max_images'] = max_images
     dataset_args_eval = EasyDict(tfrecord_dir=dataset_eval)
+    desc += '-' + dataset_eval
 
     assert num_gpus in [1, 2, 4, 8]
     sc.num_gpus = num_gpus

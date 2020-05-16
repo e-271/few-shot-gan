@@ -119,7 +119,8 @@ def training_loop(
     grid_args               = {},       # Options for train.setup_snapshot_image_grid().
     metric_arg_list         = [],       # Options for MetricGroup.
     tf_config               = {},       # Options for tflib.init_tf().
-    data_dir                = None,     # Directory to load datasets from.
+    train_data_dir          = None,     # Directory to load datasets from.
+    eval_data_dir           = None,     # Directory to load datasets from.
     G_smoothing_kimg        = 10.0,     # Half-life of the running average of generator weights.
     minibatch_repeats       = 4,        # Number of minibatches to run before adjusting training parameters.
     lazy_regularization     = True,     # Perform regularization as a separate training step?
@@ -151,9 +152,9 @@ def training_loop(
 
     # Load training set.
     print("Loading train set from %s..." % dataset_args.tfrecord_dir)
-    training_set = dataset.load_dataset(data_dir=dnnlib.convert_path(data_dir), verbose=True, **dataset_args)
+    training_set = dataset.load_dataset(data_dir=dnnlib.convert_path(train_data_dir), verbose=True, **dataset_args)
     print("Loading eval set from %s..." % dataset_args_eval.tfrecord_dir)
-    eval_set = dataset.load_dataset(data_dir=dnnlib.convert_path(data_dir), verbose=True, **dataset_args_eval)
+    eval_set = dataset.load_dataset(data_dir=dnnlib.convert_path(eval_data_dir), verbose=True, **dataset_args_eval)
     grid_size, grid_reals, grid_labels = misc.setup_snapshot_image_grid(training_set, **grid_args)
     misc.save_image_grid(grid_reals, dnnlib.make_run_dir_path('reals.png'), drange=training_set.dynamic_range, grid_size=grid_size)
 
@@ -212,10 +213,10 @@ def training_loop(
 
 
         grid_latents4 = grid_latents[:4] #np.random.randn(4, *G.input_shape[1:])
-        for var in []: #G_lambda_mask.keys():
+        for var in G_lambda_mask.keys():
             for sv in range(10):
                 name = var.replace('/','')[:-4]
-                for i, n in enumerate([-5, -1, 0, 1, 2, 3, 5]):
+                for i, n in enumerate([-5, -3, -1, 1, 3, 5]):
                     G_lambda_mask[var][sv] = n
                     grid_fakes = G.run(grid_latents4, grid_labels, rho, lambda_mask=G_lambda_mask, is_validation=True, minibatch_size=1)
                     misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('%s_%d%d_sv%d*=%d.png' % (name, sv, i, sv, n)), drange=drange_net, grid_size=(2,2))
@@ -245,7 +246,6 @@ def training_loop(
         d_fake = D.run(grid_fakes[:1], rho, is_validation=True)
         d_real = D.run(grid_reals[:1], rho, is_validation=True)
         print('Fake', d_fake, 'lfake', load_d_fake, 'real', d_real, 'lreal', load_d_real)
-        #import pdb; pdb.set_trace()
         #assert load_d_fake[0][0] ==d_fake[0][0]
 
 
@@ -529,7 +529,7 @@ def training_loop(
                 misc.save_pkl((G, D, Gs), pkl)
                 for r in fid_rhos:
                     print('rho = %.2f' % r)
-                    metrics.run(pkl, run_dir=dnnlib.make_run_dir_path(), data_dir=dnnlib.convert_path(data_dir), num_gpus=num_gpus, tf_config=tf_config, rho=r)
+                    metrics.run(pkl, run_dir=dnnlib.make_run_dir_path(), data_dir=dnnlib.convert_path(eval_data_dir), num_gpus=num_gpus, tf_config=tf_config, rho=r)
                     if cur_tick == 0: break
             # Update summaries and RunContext.
             metrics.update_autosummaries()
