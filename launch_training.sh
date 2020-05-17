@@ -33,9 +33,15 @@ if [[ $(hostname) == "jb"* ]]; # RTX
 then
 ddir='/work/erobb/datasets/'
 rdir="/work/erobb/results/$dir/$(basename $tx)_${N}shot"
+elif [[ $(hostname) == "vllab"* ]];
+then
+ddir="/mnt/slow_ssd/erobb/datasets"
+rdir="/mnt/hdd/erobb/results"
+pkl="/mnt/hdd/erobb/pickles"
 else # ARC
 ddir='/work/newriver/erobb/datasets'
 rdir="/work/newriver/erobb/results/$dir/$(basename $tx)_${N}shot"
+pkl="/work/newriver/erobb/pickles"
 fi
 
 
@@ -45,40 +51,40 @@ then
 echo "automatically choosing pretrain"
 if [[ $tx == *"KannadaHnd"* ]]
 then
-pt='/work/newriver/erobb/pickles/EngFnt.pkl'
+pt="$pkl/EngFnt.pkl"
 elif [[ $tx == *"EngHnd"* ]]
 then
-pt='/work/newriver/erobb/pickles/EngFnt.pkl'
+pt="$pkl/EngFnt.pkl"
 elif [[ $tx == *"mnist"* ]]
 then
-pt='/work/newriver/erobb/pickles/EngFnt.pkl'
+pt="$pkl/EngFnt.pkl"
 elif [[ $tx == *"EngFnt"* ]]
 then
-pt='/work/newriver/erobb/pickles/EngFnt.pkl' # TODO
+pt="$pkl/EngFnt.pkl" 
 elif [[ $tx == *"tower"* ]]
 then
-pt='/work/newriver/erobb/pickles/church-config-f.pkl'
+pt="$pkl/church-config-f.pkl"
 aug=1
 elif [[ $tx == *"bus"* ]]
 then
-pt='/work/newriver/erobb/pickles/car-config-f.pkl'
+pt="$pkl/car-config-f.pkl"
 aug=1
 elif [[ $tx == *"dog"* ]]
 then
-pt='/work/newriver/erobb/pickles/cat-config-f.pkl'
+pt="$pkl/cat-config-f.pkl"
 aug=1
 elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]]
 then
-pt='/work/newriver/erobb/pickles/ffhq-config-f.pkl'
+pt="$pkl/ffhq-config-f.pkl"
 aug=1
 elif [[ $tx == *"cifar10" ]]
 then
-pt='/work/newriver/erobb/pickles/cifar100_cond.pkl'
+pt="$pkl/cifar100_cond.pkl"
 metrics='cas10k,'
 aug=1
 elif [[ $tx == *"cifar100" ]]
 then
-pt='/work/newriver/erobb/pickles/cifar10_cond.pkl'
+pt="$pkl/cifar10_cond.pkl"
 metrics='cas10k'
 aug=1
 fi
