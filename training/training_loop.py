@@ -524,8 +524,8 @@ def training_loop(
                         misc.save_image_grid(terp_fakes, dnnlib.make_run_dir_path('fakes_latent_terp_r%.2f_%06d.png' % (r, cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
 
 
-            if network_snapshot_ticks is not None and (cur_tick > 30 and cur_tick % network_snapshot_ticks == 0 or done 
-                                                   or (cur_tick < 30 and cur_tick % 4 == 0)):
+            if network_snapshot_ticks is not None and (cur_tick > 40 and cur_tick % network_snapshot_ticks == 0 or done 
+                                                   or (cur_tick < 40 and cur_tick % 4 == 0)):
                 pkl = dnnlib.make_run_dir_path('network-snapshot-%06d.pkl' % (cur_nimg // 1000))
                 misc.save_pkl((G, D, Gs), pkl)
                 for r in fid_rhos:

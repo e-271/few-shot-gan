@@ -52,7 +52,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks, sv_factors):
+def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks, sv_factors, spatial_svd):
 
     if g_loss_kwargs != '': g_loss_kwargs = json.loads(g_loss_kwargs)
     else: g_loss_kwargs = {}
@@ -159,7 +159,6 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
         G = EasyDict(func_name='training.networks_stylegan.G_style')
         D = EasyDict(func_name='training.networks_stylegan.D_basic')
 
-
     train.resume_with_new_nets = True # Recreate with new parameters
     # Adaptive parameter configurations
     if config_id in ['config-ss', 'config-ra', 'config-sv', 'config-sv-syn', 'config-sv-map', 'config-ae']:
@@ -170,25 +169,15 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
         if config_id[:9] == 'config-sv':
             G['sv_factors'] = D['sv_factors'] = sv_factors
             desc += '-%dsv' % sv_factors
-            # TODO fix this or delete it
-            #if config_id == 'config-sv':
-            #    G['factorized'] = D['factorized'] = True
+            if spatial_svd:
+                G['spatial'] = D['spatial'] = True
             if config_id == 'config-sv-syn':
                 G['syn_svd'] = D['svd'] = True
             elif config_id == 'config-sv-map':
                 G['map_svd'] = D['svd'] = True
             elif config_id == 'config-sv-all':
                 G['map_svd'] = G['syn_svd'] = D['svd'] = True
-        # TODO Clean up or remove this, it doesn't work?
-        if g_loss == 'G_logistic_ns_pathreg_ae': 
-            assert config_id == 'config-ra'
-            AE = EasyDict(func_name='training.networks_stylegan2.AE')
-            AE_opt = EasyDict(beta1=0.0, beta2=0.99, epsilon=1e-8)
-            AE_loss = EasyDict(func_name='training.loss.AE_l2')
 
-    # TODO This also doesn't work
-    if d_loss == 'D_logistic_r1_cos':
-        D['cos_output'] = True
 
     if gamma is not None:
         D_loss.gamma = gamma
@@ -260,6 +249,7 @@ def main():
     parser.add_argument('--total-kimg', help='Training length in thousands of images (default: %(default)s)', metavar='KIMG', default=25000, type=int)
     parser.add_argument('--gamma', help='R1 regularization weight (default is config dependent)', default=None, type=float)
     parser.add_argument('--sv-factors', help='Number of singular values to use for SV config (default: all)', default=0, type=int)
+    parser.add_argument('--spatial-svd', help='Flattent spatial dimension for SVD (default: False)', default=False, metavar='BOOL', type=_str_to_bool)
     parser.add_argument('--mirror-augment', help='Mirror augment (default: %(default)s)', default=False, metavar='BOOL', type=_str_to_bool)
     parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid1k', type=_parse_comma_sep)
     parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')
