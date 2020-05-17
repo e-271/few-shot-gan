@@ -80,43 +80,47 @@ def dense_layer(x, fmaps, gain=1, use_wscale=True, lrmul=1, weight_var='weight',
     else: # Vanilla conv weights
         w = get_weight([x.shape[1].value, fmaps], gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
 
-
-
     w = tf.cast(w, x.dtype)
     return tf.matmul(x, w)
 
 
+# TODO merge this with dense layer SVD, and add some controls for size s.t. it can switch between dense / 3x3 conv / spatial flat conv
 def _get_conv_w(x, fmaps, kernel, gain, use_wscale, lrmul, weight_var, svd, factorized, sv_factors, lambda_mask):
     if svd:
         if factorized:
-            sv = min(x.shape[1].value, fmaps)
-            kf = sv #sv_factors if sv_factors != None else sv # Dimension reduction factor
-            k = tf.get_variable('SVD/adapt/lambda', shape=[kernel, kernel, kf], initializer=tf.initializers.ones())
-            s = tf.get_variable("SVD/s", shape=[kernel, kernel, sv])
-            u = tf.get_variable("SVD/u", shape=[kernel, kernel, x.shape[1].value, sv])
-            v = tf.get_variable("SVD/v", shape=[kernel, kernel, fmaps, sv])
-            if kf > 0 and kf < sv:
-                k = tf.concat([k, tf.get_variable('SVD/lambda', shape=[kernel, kernel, sv - kf], initializer=tf.initializers.ones())], axis=2)
-            name = re.sub('_[0-9]/', '/', s.name).split(':')[0]
-            if name in lambda_mask: k = k * lambda_mask[name]
-            else: "%s not found in lambda mask, ignoring..." % name
-            w = tf.matmul(tf.matmul(u, tf.linalg.diag(s * k)), tf.transpose(v, perm=[0, 1, 3, 2]))
+            with tf.variable_scope('SVD'):
+                sv = min(kernel * kernel * x.shape[1].value, fmaps)
+                kf = sv #sv_factors if sv_factors != None else sv # Dimension reduction factor
+                k = tf.get_variable('adapt/lambda', shape=[kf], initializer=tf.initializers.ones())
+                s = tf.get_variable("s", shape=[sv])
+                u = tf.get_variable("u", shape=[kernel * kernel * x.shape[1].value, sv])
+                v = tf.get_variable("v", shape=[fmaps, sv])
+                if kf > 0 and kf < sv:
+                    k = tf.concat([k, tf.get_variable('lambda', shape=[sv - kf], initializer=tf.initializers.ones())], axis=2)
+                name = re.sub('_[0-9]/', '/', s.name).split(':')[0]
+                if name in lambda_mask: k = k * lambda_mask[name]
+                else: "%s not found in lambda mask, ignoring..." % name
+                w = tf.matmul(tf.matmul(u, tf.linalg.diag(s * k)), tf.transpose(v))
+                w = tf.reshape(w, [kernel, kernel, x.shape[1].value, fmaps])
         else:
             w = get_weight([kernel, kernel, x.shape[1].value, fmaps], gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
-            old_shape = w.shape
-            _s, _u, _v = tf.svd(w)
-            sv = min(x.shape[1].value, fmaps)
-            s = tf.get_variable("SVD/s", shape=[kernel, kernel, sv])
-            u = tf.get_variable("SVD/u", shape=[kernel, kernel, x.shape[1].value, sv])
-            v = tf.get_variable("SVD/v", shape=[kernel, kernel, fmaps, sv])
-            assert s.shape == _s.shape
-            assert u.shape == _u.shape
-            assert v.shape == _v.shape
-            s = s.assign(_s)
-            u = u.assign(_u)
-            v = v.assign(_v)
-            w = tf.matmul(tf.matmul(u, tf.linalg.diag(s)), tf.transpose(v, perm=[0, 1, 3, 2]))
-            assert w.shape == old_shape
+            with tf.variable_scope('SVD'):
+                old_shape = w.shape
+                w = tf.reshape(w, [kernel * kernel * x.shape[1].value, fmaps])
+                _s, _u, _v = tf.svd(w)
+                sv = min(kernel * kernel * x.shape[1].value, fmaps)
+                s = tf.get_variable("s", shape=[sv])
+                u = tf.get_variable("u", shape=[kernel * kernel * x.shape[1].value, sv])
+                v = tf.get_variable("v", shape=[fmaps, sv])
+                assert s.shape == _s.shape
+                assert u.shape == _u.shape
+                assert v.shape == _v.shape
+                s = s.assign(_s)
+                u = u.assign(_u)
+                v = v.assign(_v)
+                w = tf.matmul(tf.matmul(u, tf.linalg.diag(s)), tf.transpose(v))
+                w = tf.reshape(w, [kernel, kernel, x.shape[1].value, fmaps])
+                assert w.shape == old_shape
     else:
         w = get_weight([kernel, kernel, x.shape[1].value, fmaps], gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
     return w

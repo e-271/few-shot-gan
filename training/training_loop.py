@@ -213,7 +213,7 @@ def training_loop(
 
 
         grid_latents4 = grid_latents[:4] #np.random.randn(4, *G.input_shape[1:])
-        for var in G_lambda_mask.keys():
+        for var in []: #G_lambda_mask.keys():
             for sv in range(10):
                 name = var.replace('/','')[:-4]
                 for i, n in enumerate([-5, -3, -1, 1, 3, 5]):
@@ -231,7 +231,8 @@ def training_loop(
 
     # Reduce minibatch size to fit in 16GB GPU memory
     if ('factorized' in G_args or 'svd' in G_args) and grid_reals.shape[2] >= 1024:
-        sched_args.minibatch_gpu_base = 2   
+        sched_args.minibatch_gpu_base = 1   
+    print('Batch size', sched_args.minibatch_gpu_base)
 
     # Print layers and generate initial image snapshot.
     G.print_layers(); D.print_layers()
@@ -523,8 +524,8 @@ def training_loop(
                         misc.save_image_grid(terp_fakes, dnnlib.make_run_dir_path('fakes_latent_terp_r%.2f_%06d.png' % (r, cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
 
 
-            if network_snapshot_ticks is not None and (cur_tick > 20 and cur_tick % network_snapshot_ticks == 0 or done 
-                                                   or (cur_tick < 20 and cur_tick % 4 == 0)):
+            if network_snapshot_ticks is not None and (cur_tick > 30 and cur_tick % network_snapshot_ticks == 0 or done 
+                                                   or (cur_tick < 30 and cur_tick % 4 == 0)):
                 pkl = dnnlib.make_run_dir_path('network-snapshot-%06d.pkl' % (cur_nimg // 1000))
                 misc.save_pkl((G, D, Gs), pkl)
                 for r in fid_rhos:

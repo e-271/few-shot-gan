@@ -85,6 +85,7 @@ fi
 
 metrics=""
 pt=""
+aug=0
 if [[ $pt == "" ]]
 then
 i=0
@@ -104,23 +105,29 @@ pt='/work/newriver/erobb/pickles/EngFnt.pkl' # TODO
 elif [[ $tx == *"tower"* ]]
 then
 pt='/work/newriver/erobb/pickles/church-config-f.pkl'
+aug=1
 elif [[ $tx == *"bus"* ]]
 then
 pt='/work/newriver/erobb/pickles/car-config-f.pkl'
+aug=1
 elif [[ $tx == *"dog"* ]]
 then
 pt='/work/newriver/erobb/pickles/cat-config-f.pkl'
+aug=1
 elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]]
 then
 pt='/work/newriver/erobb/pickles/ffhq-config-f.pkl'
+aug=1
 elif [[ $tx == *"cifar10" ]]
 then
 pt='/work/newriver/erobb/pickles/cifar100_cond.pkl'
 metrics='cas10k,'
+aug=1
 elif [[ $tx == *"cifar100" ]]
 then
 pt='/work/newriver/erobb/pickles/cifar10_cond.pkl'
 metrics='cas10k'
+aug=1
 fi
 
 
@@ -177,6 +184,11 @@ lr=0.003
 cfg="config-sv-all"
 sv=0
 
+elif [[ $model == "svc" ]]
+then
+lr=0.003
+cfg="config-sv-spc"
+sv=0
 
 fi
 
@@ -229,6 +241,7 @@ python run_training.py \
 --lrate-base=$lr \
 --result-dir=$rdir/$(basename $tx) \
 --sv-factors=$sv \
---metrics=$metrics
+--metrics=$metrics \
+--mirror-augment=$aug
 
 echo "done."

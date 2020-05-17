@@ -32,7 +32,8 @@ _valid_configs = [
     'config-sv-map',
     'config-sv-syn',
     'config-sv-all',
-    'config-ae',
+    'config-sv-spc',
+    'config-ae', # TODO remove
 
     #'config-a-gb',
     'config-b-g',
@@ -111,23 +112,11 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
     assert config_id in _valid_configs
     desc += '-' + config_id
 
-    desc += '-' + G_loss.func_name.split('_')[-1] 
-
-    for kw in g_loss_kwargs.keys():
-        desc += '-' + str(g_loss_kwargs[kw]) + str(kw)
-
-
-    desc += '-' + D_loss.func_name.split('_')[-1]
-
-    for kw in d_loss_kwargs.keys():
-        desc += '-' + str(d_loss_kwargs[kw]) + str(kw)
-
-
     desc += '-%dimg' % (-1 if max_images==None else max_images)
 
     #desc += ('-rho%.1E' % rho).replace('+', '')
 
-    desc += ('-lr%.1E' % lrate_base).replace('+', '')
+    #desc += ('-lr%.1E' % lrate_base).replace('+', '')
 
     if mirror_augment: desc += '-aug'
 
