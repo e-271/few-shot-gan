@@ -36,7 +36,7 @@ rdir="/work/erobb/results/$dir/$(basename $tx)_${N}shot"
 elif [[ $(hostname) == "vllab"* ]];
 then
 ddir="/mnt/slow_ssd/erobb/datasets"
-rdir="/mnt/hdd/erobb/results"
+rdir="/mnt/hdd/erobb/results/$dir/$(basename $tx)_${N}shot"
 pkl="/mnt/hdd/erobb/pickles"
 else # ARC
 ddir='/work/newriver/erobb/datasets'
@@ -142,9 +142,14 @@ fi
 
 
 if (( $dbg )); then
-metrics="None"
+    metrics="None"
 else
-metrics="$(metrics)fid10k,ppgs10k,lpips10k"
+    if [[ $ev == *"mini"* ]];
+    then
+    metrics="$(metrics)ppgs10k,lpips10k"
+    else
+    metrics="$(metrics)fid10k,ppgs10k,lpips10k"
+    fi
 fi
 
 
