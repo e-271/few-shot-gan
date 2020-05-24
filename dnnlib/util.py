@@ -18,7 +18,6 @@ import types
 import io
 import pickle
 import re
-import requests
 import html
 import hashlib
 import glob
@@ -332,6 +331,7 @@ def is_url(obj: Any, allow_file_urls: bool = False) -> bool:
     if allow_file_urls and obj.startswith('file:///'):
         return True
     try:
+        import requests
         res = requests.compat.urlparse(obj)
         if not res.scheme or not res.netloc or not "." in res.netloc:
             return False
@@ -345,6 +345,7 @@ def is_url(obj: Any, allow_file_urls: bool = False) -> bool:
 
 def open_url(url: str, cache_dir: str = None, num_attempts: int = 10, verbose: bool = True) -> Any:
     """Download the given URL and return a binary-mode file object to access the data."""
+    import requests
     assert is_url(url, allow_file_urls=True)
     assert num_attempts >= 1
 

@@ -134,8 +134,8 @@ def training_loop(
     network_snapshot_ticks  = 50,       # How often to save network snapshots? None = only save 'networks-final.pkl'.
     save_tf_graph           = True,    # Include full TensorFlow computation graph in the tfevents file?
     save_weight_histograms  = True,    # Include weight histograms in the tfevents file?
-    plot_rho_terp           = True,     # Save plot interpolating rho
-    plot_latent_terp        = True,     # Save plot interpolating through latent space
+    plot_rho_terp           = False,    # NOTE: Requires NumPy > 1.16 Save plot interpolating rho
+    plot_latent_terp        = False,    # NOTE: Requires NumPy > 1.16 Save plot interpolating through latent space
     plot_latent_terp_rhos   = [1.0],    # Rhos for latent interpolation plot
     fid_rhos                = [1.0],    # Rhos for latent interpolation plot
     resume_pkl              = None,     # Network pickle to resume training from, None = train from scratch.
@@ -524,8 +524,7 @@ def training_loop(
                         misc.save_image_grid(terp_fakes, dnnlib.make_run_dir_path('fakes_latent_terp_r%.2f_%06d.png' % (r, cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
 
 
-            if network_snapshot_ticks is not None and (cur_tick > 40 and cur_tick % network_snapshot_ticks == 0 or done 
-                                                   or (cur_tick < 40 and cur_tick % 4 == 0)):
+            if network_snapshot_ticks is not None and cur_tick % network_snapshot_ticks == 0 or done:
                 pkl = dnnlib.make_run_dir_path('network-snapshot-%06d.pkl' % (cur_nimg // 1000))
                 misc.save_pkl((G, D, Gs), pkl)
                 for r in fid_rhos:

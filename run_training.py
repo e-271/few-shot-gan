@@ -52,7 +52,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks, sv_factors, spatial_svd):
+def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks, sv_factors, spatial_svd, skip_images):
 
     if g_loss_kwargs != '': g_loss_kwargs = json.loads(g_loss_kwargs)
     else: g_loss_kwargs = {}
@@ -102,6 +102,7 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
         train.eval_data_dir = os.path.join(data_dir, '/'.join(e_path[:-1]))
     dataset_args = EasyDict(tfrecord_dir=dataset_train)
     dataset_args['max_images'] = max_images
+    dataset_args['skip_images'] = skip_images
     dataset_args_eval = EasyDict(tfrecord_dir=dataset_eval)
     desc += '-' + dataset_eval
 
@@ -161,7 +162,7 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
 
     train.resume_with_new_nets = True # Recreate with new parameters
     # Adaptive parameter configurations
-    if config_id in ['config-ss', 'config-ra', 'config-sv', 'config-sv-syn', 'config-sv-map', 'config-ae']:
+    if config_id in ['config-ss', 'config-ra', 'config-sv', 'config-sv-syn', 'config-sv-map', 'config-sv-all', 'config-ae']:
         G['train_scope'] = D['train_scope'] = '.*adapt' # Freeze old parameters
         train.resume_with_new_nets = True # Recreate with new adaptive parameters
         if config_id == 'config-ss': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
@@ -245,6 +246,7 @@ def main():
     parser.add_argument('--g-loss-kwargs', help='JSON-formatted keyword arguments for generator loss function.', default='', required=False)
     parser.add_argument('--d-loss-kwargs', help='JSON-formatted keyword arguments for discriminator loss function.', default='', required=False)
     parser.add_argument('--max-images', help='Maximum number of images to pull from dataset.', default=None, type=int)
+    parser.add_argument('--skip-images', help='Number of images to skip, set negative for random seed', default=0, type=int)
     parser.add_argument('--num-gpus', help='Number of GPUs (default: %(default)s)', default=1, type=int, metavar='N')
     parser.add_argument('--total-kimg', help='Training length in thousands of images (default: %(default)s)', metavar='KIMG', default=25000, type=int)
     parser.add_argument('--gamma', help='R1 regularization weight (default is config dependent)', default=None, type=float)
@@ -256,7 +258,7 @@ def main():
     parser.add_argument('--lrate-base', help='Base learning rate for G and D', default=0.002, type=float)
     parser.add_argument('--resume-kimg', help='kimg to resume from, affects scheduling', default=0, type=int)
     parser.add_argument('--img-ticks', help='How often to save images', default=1, type=int)
-    parser.add_argument('--net-ticks', help='How often to save network snapshots', default=10, type=int)
+    parser.add_argument('--net-ticks', help='How often to save network snapshots', default=4, type=int)
 
     args = parser.parse_args()
 

@@ -34,13 +34,14 @@ class MetricBase:
     def close(self):
         self._reset()
 
-    def _reset(self, network_pkl=None, run_dir=None, data_dir=None, dataset_args=None, mirror_augment=None):
+    def _reset(self, network_pkl=None, run_dir=None, data_dir=None, dataset_args_train=None, dataset_args=None, mirror_augment=None):
         if self._dataset_obj is not None:
             self._dataset_obj.close()
 
         self._network_pkl = network_pkl
         self._data_dir = data_dir
         self._dataset_args = dataset_args
+        self._dataset_args_train = dataset_args_train
         self._dataset_obj = None
         self._mirror_augment = mirror_augment
         self._eval_time = 0
@@ -48,9 +49,14 @@ class MetricBase:
 
         if (dataset_args is None or mirror_augment is None) and run_dir is not None:
             run_config = misc.parse_config_for_previous_run(run_dir)
+            self._dataset_args_train = dict(run_config['dataset'])
+            self._dataset_args_train['shuffle_mb'] = 0
+            self._dataset_args_train['max_images'] = None
+            self._dataset_args_train['skip_images'] = None
             self._dataset_args = dict(run_config['dataset_eval'])
             self._dataset_args['shuffle_mb'] = 0
             self._dataset_args['max_images'] = None
+            self._dataset_args['skip_images'] = None
             self._mirror_augment = run_config['train'].get('mirror_augment', False)
 
     def configure_progress_reports(self, plo, phi, pmax, psec=15):
@@ -59,8 +65,8 @@ class MetricBase:
         self._progress_max = pmax
         self._progress_sec = psec
 
-    def run(self, network_pkl, run_dir=None, data_dir=None, dataset_args=None, mirror_augment=None, num_gpus=1, tf_config=None, log_results=True, Gs_kwargs=dict(is_validation=True), rho=1):
-        self._reset(network_pkl=network_pkl, run_dir=run_dir, data_dir=data_dir, dataset_args=dataset_args, mirror_augment=mirror_augment)
+    def run(self, network_pkl, run_dir=None, data_dir=None, dataset_args_train=None, dataset_args=None, mirror_augment=None, num_gpus=1, tf_config=None, log_results=True, Gs_kwargs=dict(is_validation=True), rho=1):
+        self._reset(network_pkl=network_pkl, run_dir=run_dir, data_dir=data_dir, dataset_args_train=dataset_args_train, dataset_args=dataset_args, mirror_augment=mirror_augment)
         time_begin = time.time()
         with tf.Graph().as_default(), tflib.create_session(tf_config).as_default(): # pylint: disable=not-context-manager
             self._report_progress(0, 1)
@@ -123,6 +129,7 @@ class MetricBase:
             self._dataset_obj = dataset.load_dataset(data_dir=self._data_dir, **self._dataset_args)
         return self._dataset_obj
 
+
     def _iterate_reals(self, minibatch_size):
         dataset_obj = self._get_dataset_obj()
         while True:
@@ -145,12 +152,30 @@ class MetricBase:
 # Group of multiple metrics.
 
 class MetricGroup:
-    def __init__(self, metric_kwarg_list):
+    def __init__(self,  metric_kwarg_list):
         self.metrics = [dnnlib.util.call_func_by_name(**kwargs) for kwargs in metric_kwarg_list]
+        self.log_exists = False
 
     def run(self, *args, **kwargs):
         for metric in self.metrics:
             metric.run(*args, **kwargs)
+
+        network_name = os.path.splitext(os.path.basename(self.metrics[0]._network_pkl))[0]
+        row = '%-30s' % network_name
+        for metric in self.metrics:
+            fmt_res = metric._results[-1].fmt % metric._results[-1].value
+            row += '%-20s' % (fmt_res)
+        if kwargs['run_dir'] is not None:
+            log_file = os.path.join(kwargs['run_dir'], 'metrics.txt')
+            with dnnlib.util.Logger(log_file, 'a'):
+                if not self.log_exists:
+                    head = '%-30s' % "checkpoint"
+                    for metric in self.metrics: head += "%-20s" % metric.name
+                    print(head.strip())
+                    self.log_exists = True
+                print(row.strip())
+        else:
+            print(row.strip())
 
     def get_result_str(self):
         return ' '.join(metric.get_result_str() for metric in self.metrics)

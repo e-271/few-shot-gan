@@ -4,7 +4,7 @@
 # ./launch_training.sh N kimg model loss tx eval dir pt idx
 
 if (( $# < 7 )); then
-    echo "Usage: ./launch_training.sh N kimg model spc tx eval dir gpu dbg"
+    echo "Usage: ./launch_training.sh N kimg model spc tx eval dir gpu dbg rep"
     exit 1
 fi
 
@@ -17,12 +17,14 @@ ev=$6
 dir=$7
 gpu=$8
 dbg=$9
+rep=${10}
 
 lr=0.002
 metrics=""
 pt=""
 aug=0
 i=0
+nt=1
 
 echo $1 $2 $3 $4 $5 $6 $7 $8
 echo $(hostname)
@@ -32,10 +34,10 @@ echo $CUDA_VISIBLE_DEVICES
 if [[ $(hostname) == "jb"* ]]; # RTX
 then
 ddir='/work/erobb/datasets/'
-rdir="/work/erobb/results/$dir/$(basename $tx)_${N}shot"
+rdir="/work/erobb/results/$dir/$(basename $tx)_${N}shot/$model"
 else # ARC
 ddir='/work/newriver/erobb/datasets'
-rdir="/work/newriver/erobb/results/$dir/$(basename $tx)_${N}shot"
+rdir="/work/newriver/erobb/results/$dir/$(basename $tx)_${N}shot/$model"
 fi
 
 
@@ -76,11 +78,13 @@ then
 pt='/work/newriver/erobb/pickles/cifar100_cond.pkl'
 metrics='cas10k,'
 aug=1
-elif [[ $tx == *"cifar100" ]]
+nt=4
+elif [[ $tx == *"cifar100"* ]]
 then
 pt='/work/newriver/erobb/pickles/cifar10_cond.pkl'
-metrics='cas10k'
+metrics='cas10k,'
 aug=1
+nt=4
 fi
 
 
@@ -136,14 +140,14 @@ fi
 
 
 if (( $dbg )); then
-metrics="None"
+metrics="fid1k"
 else
-metrics="$(metrics)fid10k,ppgs10k,lpips10k"
+metrics="fid10k,ppgs1k"
 fi
 
 
-
-
+for i in $(seq 1 $rep)
+do
 echo "CUDA_VISIBLE_DEVICES=$gpu \
 python run_training.py \
 --num-gpus=1 \
@@ -158,8 +162,10 @@ python run_training.py \
 --lrate-base=$lr \
 --result-dir=$rdir \
 --sv-factors=$sv \
---mirror-augment=$aug
---metrics=$(metrics)"
+--mirror-augment=$aug\
+--net-ticks=$nt \
+--metrics=$metrics \
+--skip-images=-$i"
 
 
 CUDA_VISIBLE_DEVICES=$gpu \
@@ -178,6 +184,10 @@ python run_training.py \
 --result-dir=$rdir \
 --sv-factors=$sv \
 --mirror-augment=$aug \
---metrics=$metrics
+--net-ticks=$nt \
+--metrics=$metrics \
+--skip-images=-$i
+done
 
 echo "done."
+

@@ -23,7 +23,7 @@ class TFRecordDataset:
         label_file      = None,     # Relative path of the labels file, None = autodetect.
         max_label_size  = 'full',        # 0 = no labels, 'full' = full labels, <int> = N first label components.
         max_images      = None,     # Maximum number of images to use, None = use all images.
-        skip_images     = None,     # Number of images to skip, None = start at beginning.
+        skip_images     = None,     # Number of images to skip, None = start at beginning, -1 = random skip.
         repeat          = True,     # Repeat dataset indefinitely?
         shuffle_mb      = 4096,     # Shuffle data within specified window (megabytes), 0 = disable shuffling.
         prefetch_mb     = 2048,     # Amount of data to prefetch (megabytes), 0 = disable prefetching.
@@ -60,7 +60,7 @@ class TFRecordDataset:
             for record in tf.python_io.tf_record_iterator(tfr_file, tfr_opt):
                 tfr_shapes.append(self.parse_tfrecord_np(record).shape)
                 break
-
+        
         # Autodetect label filename.
         if self.label_file is None:
             guess = sorted(glob.glob(os.path.join(self.tfrecord_dir, '*.labels')))
@@ -71,6 +71,7 @@ class TFRecordDataset:
             if os.path.isfile(guess):
                 self.label_file = guess
 
+
         # Determine shape and resolution.
         max_shape = max(tfr_shapes, key=np.prod)
         self.resolution = resolution if resolution is not None else max_shape[1]
@@ -79,9 +80,12 @@ class TFRecordDataset:
         tfr_lods = [self.resolution_log2 - int(np.log2(shape[1])) for shape in tfr_shapes]
         assert all(shape[0] == max_shape[0] for shape in tfr_shapes)
         assert all(shape[1] == shape[2] for shape in tfr_shapes)
-        assert all(shape[1] == self.resolution // (2**lod) for shape, lod in zip(tfr_shapes, tfr_lods))
         assert all(lod in tfr_lods for lod in range(self.resolution_log2 - 1))
 
+        # Get a random number of images to skip
+        if skip_images is not None and skip_images < 0:
+            rng = np.random.RandomState(seed=-skip_images)
+            skip_images = rng.random_integers(0, 1000)
         # Load labels.
         assert max_label_size == 'full' or max_label_size >= 0
         self._np_labels = np.zeros([1<<30, 0], dtype=np.float32)
@@ -127,6 +131,10 @@ class TFRecordDataset:
 
     def close(self):
         pass
+
+    def get_length(self):
+        tfr_files = sorted(glob.glob(os.path.join(self.tfrecord_dir, '*.tfrecords')))
+        return sum(1 for _ in tf.python_io.tf_record_iterator(tfr_files[0]))
 
     # Use the given minibatch size and level-of-detail for the data returned by get_minibatch_tf().
     def configure(self, minibatch_size, lod=0):
@@ -181,9 +189,6 @@ class TFRecordDataset:
         data = ex.features.feature['data'].bytes_list.value[0] # pylint: disable=no-member
         return np.fromstring(data, np.uint8).reshape(shape)
 
-
-    def split(frac):
-        test_dataset = self._
 
 #----------------------------------------------------------------------------
 # Helper func for constructing a dataset object using the given options.
