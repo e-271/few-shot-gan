@@ -25,6 +25,7 @@ pt=""
 aug=0
 i=0
 nt=1
+fd="False"
 
 echo $1 $2 $3 $4 $5 $6 $7 $8
 echo $(hostname)
@@ -45,7 +46,7 @@ pkl="/mnt/hdd/erobb/pickles"
 else # ARC
 ddir='/work/newriver/erobb/datasets'
 rdir="/work/newriver/erobb/results/$dir/$(basename $tx)_${N}shot/$model"
-
+pkl="/work/newriver/erobb/pickles"
 fi
 
 
@@ -126,6 +127,13 @@ then
 lr=0.0003
 cfg="config-ra"
 
+# Freeze discriminator
+elif [[ $model == "fd" ]]
+then
+lr=0.0003
+cfg="config-f"
+fd="True"
+
 elif [[ $model == "svm" ]]
 then
 lr=0.003
@@ -144,6 +152,7 @@ lr=0.003
 cfg="config-sv-all"
 sv=0
 
+
 fi
 
 
@@ -159,7 +168,7 @@ metrics="fid10k,ppgs1k"
 fi
 
 
-for i in $(seq 1 $rep)
+for i in $(seq 6 $rep)
 do
 echo "CUDA_VISIBLE_DEVICES=$gpu \
 python run_training.py \
@@ -178,7 +187,8 @@ python run_training.py \
 --mirror-augment=$aug\
 --net-ticks=$nt \
 --metrics=$metrics \
---skip-images=-$i"
+--skip-images=-$i \
+--freeze-d=$fd"
 
 
 CUDA_VISIBLE_DEVICES=$gpu \
@@ -199,7 +209,9 @@ python run_training.py \
 --mirror-augment=$aug \
 --net-ticks=$nt \
 --metrics=$metrics \
---skip-images=-$i
+--skip-images=-$i \
+--freeze-d=$fd
+
 done
 
 echo "done."

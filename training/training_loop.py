@@ -157,6 +157,16 @@ def training_loop(
     eval_set = dataset.load_dataset(data_dir=dnnlib.convert_path(eval_data_dir), verbose=True, **dataset_args_eval)
     grid_size, grid_reals, grid_labels = misc.setup_snapshot_image_grid(training_set, **grid_args)
     misc.save_image_grid(grid_reals, dnnlib.make_run_dir_path('reals.png'), drange=training_set.dynamic_range, grid_size=grid_size)
+    # Freeze Discriminator
+    if D_args['freeze']:
+        num_layers = np.log2(training_set.resolution) - 1
+        layers = int(np.round(num_layers * 3. / 8.))
+        scope = []
+        for layer in range(layers):
+            scope += ['.*%d' % (training_set.resolution // 2**layer)]
+            if 'train_scope' in D_args: scope[-1] += '.*%d' % D_args['train_scope']
+        D_args['train_scope'] = scope
+
 
     # Construct or load networks.
     with tf.device('/gpu:0'):
@@ -545,3 +555,4 @@ def training_loop(
     training_set.close()
     eval_set.close()
 #----------------------------------------------------------------------------
+

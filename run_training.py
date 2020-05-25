@@ -34,6 +34,7 @@ _valid_configs = [
     'config-sv-all',
     'config-sv-spc',
     'config-ae', # TODO remove
+    'config-fd',
 
     #'config-a-gb',
     'config-b-g',
@@ -52,7 +53,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks, sv_factors, spatial_svd, skip_images):
+def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks, sv_factors, spatial_svd, skip_images, freeze_d):
 
     if g_loss_kwargs != '': g_loss_kwargs = json.loads(g_loss_kwargs)
     else: g_loss_kwargs = {}
@@ -162,6 +163,7 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
 
     train.resume_with_new_nets = True # Recreate with new parameters
     # Adaptive parameter configurations
+
     if config_id in ['config-ss', 'config-ra', 'config-sv', 'config-sv-syn', 'config-sv-map', 'config-sv-all', 'config-ae']:
         G['train_scope'] = D['train_scope'] = '.*adapt' # Freeze old parameters
         train.resume_with_new_nets = True # Recreate with new adaptive parameters
@@ -178,7 +180,7 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
                 G['map_svd'] = D['svd'] = True
             elif config_id == 'config-sv-all':
                 G['map_svd'] = G['syn_svd'] = D['svd'] = True
-
+    D['freeze'] = freeze_d
 
     if gamma is not None:
         D_loss.gamma = gamma
@@ -253,6 +255,7 @@ def main():
     parser.add_argument('--sv-factors', help='Number of singular values to use for SV config (default: all)', default=0, type=int)
     parser.add_argument('--spatial-svd', help='Flattent spatial dimension for SVD (default: False)', default=False, metavar='BOOL', type=_str_to_bool)
     parser.add_argument('--mirror-augment', help='Mirror augment (default: %(default)s)', default=False, metavar='BOOL', type=_str_to_bool)
+    parser.add_argument('--freeze-d', help='Freeze early layers of the discriminator (default:false)', default=False, metavar='BOOL', type=_str_to_bool)
     parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid1k', type=_parse_comma_sep)
     parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')
     parser.add_argument('--lrate-base', help='Base learning rate for G and D', default=0.002, type=float)

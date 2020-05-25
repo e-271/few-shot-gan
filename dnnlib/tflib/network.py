@@ -181,7 +181,13 @@ class Network:
         self.own_vars = OrderedDict((var.name[len(self.scope) + 1:].split(":")[0], var) for var in tf.global_variables(self.scope + "/"))
         self.vars = OrderedDict(self.own_vars)
         self.vars.update((comp.name + "/" + name, var) for comp in self.components.values() for name, var in comp.vars.items())
-        self.trainables = OrderedDict((name, var) for name, var in self.vars.items() if (var.trainable and re.match(self.train_scope, name)))
+        if type(self.train_scope) == list:
+            trainables = []
+            for scope in self.train_scope:
+                trainables +=[(name, var) for name, var in self.vars.items() if (var.trainable and re.match(scope, name))]
+            self.trainables = OrderedDict(trainables)
+        else:
+            self.trainables = OrderedDict((name, var) for name, var in self.vars.items() if (var.trainable and re.match(self.train_scope, name)))
         self.var_global_to_local = OrderedDict((var.name.split(":")[0], name) for name, var in self.vars.items())
 
     def reset_own_vars(self) -> None:
@@ -195,14 +201,6 @@ class Network:
     def reset_trainables(self) -> None:
         """Re-initialize all trainable variables of this network, including sub-networks."""
         tfutil.run([var.initializer for var in self.trainables.values()])
-
-
-    def set_trainable_scope(self, train_scope):
-        """Set trainable variables to only those within self.scope + train_scope."""
-        av=tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.scope + train_scope)
-        tv=OrderedDict((var.name.split(":")[0], var) for var in av)
-        self.trainables = tv
-
 
     def get_output_for(self, *in_expr: TfExpression, return_as_list: bool = False, **dynamic_kwargs) -> Union[TfExpression, List[TfExpression]]:
         """Construct TensorFlow expression(s) for the output(s) of this network, given the input expression(s)."""
@@ -463,7 +461,6 @@ class Network:
                 else:
                     mb_in.append(src[mb_begin : mb_end])
 
-            #import pdb; pdb.set_trace()
             mb_out = tf.get_default_session().run(out_expr, dict(zip(in_expr, mb_in)))
 
             for dst, src in zip(out_arrays, mb_out):
