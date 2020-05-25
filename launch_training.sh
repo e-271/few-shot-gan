@@ -50,6 +50,15 @@ pkl="/work/newriver/erobb/pickles"
 fi
 
 
+if (( $dbg )); then
+metrics="fid1k"
+elif [[ $ev == *"mini"* ]];
+then
+metrics="pgs1k"
+else
+metrics="fid10k,ppgs1k"
+fi
+
 
 
 if [[ $pt == "" ]]
@@ -62,7 +71,7 @@ pt="$pkl/EngFnt.pkl"
 elif [[ $tx == *"EngHnd"* ]]
 then
 pt="$pkl/EngFnt.pkl"
-elif [[ $tx == "mnist" ]]
+elif [[ $tx == *"mnist" ]]
 then
 pt="$pkl/EngFnt.pkl"
 elif [[ $tx == *"EngFnt"* ]]
@@ -87,19 +96,19 @@ aug=1
 elif [[ $tx == *"cifar10" ]]
 then
 pt="$pkl/cifar100_cond.pkl"
-metrics='cas10k,'
+metrics="$metrics,cas10k"
 aug=1
 nt=4
 elif [[ $tx == *"cifar100"* ]]
 then
 pt="$pkl/cifar10_cond.pkl"
-metrics='cas10k'
+metrics="$metrics,cas10k"
 aug=1
 nt=4
-elif [[ $tx == "mnist_0-4" ]]
+elif [[ $tx == *"mnist_5-9" ]]
 then
-pt="$pkl/mnist_5-9_cond.pkl"
-metrics='cas10k'
+pt="$pkl/mnist_0-4_cond.pkl"
+metrics="$metrics,cas10k"
 aug=0
 nt=4
 fi
@@ -169,14 +178,6 @@ fi
 
 
 
-if (( $dbg )); then
-metrics="fid1k"
-elif [[ $ev == *"mini"* ]];
-then
-metrics="pgs1k"
-else
-metrics="fid10k,ppgs1k,$metrics"
-fi
 
 
 for i in $(seq 1 $rep)
