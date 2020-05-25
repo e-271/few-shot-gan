@@ -62,7 +62,7 @@ pt="$pkl/EngFnt.pkl"
 elif [[ $tx == *"EngHnd"* ]]
 then
 pt="$pkl/EngFnt.pkl"
-elif [[ $tx == *"mnist"* ]]
+elif [[ $tx == "mnist" ]]
 then
 pt="$pkl/EngFnt.pkl"
 elif [[ $tx == *"EngFnt"* ]]
@@ -95,6 +95,12 @@ then
 pt="$pkl/cifar10_cond.pkl"
 metrics='cas10k'
 aug=1
+nt=4
+elif [[ $tx == "mnist_0-4" ]]
+then
+pt="$pkl/mnist_5-9_cond.pkl"
+metrics='cas10k'
+aug=0
 nt=4
 fi
 
@@ -169,7 +175,7 @@ elif [[ $ev == *"mini"* ]];
 then
 metrics="pgs1k"
 else
-metrics="fid10k,ppgs1k"
+metrics="fid10k,ppgs1k,$metrics"
 fi
 
 
