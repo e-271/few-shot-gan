@@ -35,6 +35,7 @@ _valid_configs = [
     'config-sv-spc',
     'config-ae', # TODO remove
     'config-fd',
+    'config-pc-all',
 
     #'config-a-gb',
     'config-b-g',
@@ -164,12 +165,12 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
     train.resume_with_new_nets = True # Recreate with new parameters
     # Adaptive parameter configurations
 
-    if config_id in ['config-ss', 'config-ra', 'config-sv', 'config-sv-syn', 'config-sv-map', 'config-sv-all', 'config-ae']:
+    if config_id in ['config-ss', 'config-ra', 'config-sv', 'config-sv-syn', 'config-sv-map', 'config-sv-all', 'config-ae', 'config-pc-all']:
         G['train_scope'] = D['train_scope'] = '.*adapt' # Freeze old parameters
         train.resume_with_new_nets = True # Recreate with new adaptive parameters
         if config_id == 'config-ss': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
         if config_id == 'config-ra': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
-        if config_id[:9] == 'config-sv':
+        if config_id[:9] == 'config-sv' or config_id[:9] == 'config-pc':
             G['sv_factors'] = D['sv_factors'] = sv_factors
             desc += '-%dsv' % sv_factors
             if spatial_svd:
@@ -180,6 +181,9 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
                 G['map_svd'] = D['svd'] = True
             elif config_id == 'config-sv-all':
                 G['map_svd'] = G['syn_svd'] = D['svd'] = True
+            elif config_id == 'config-pc-all':
+                G['map_svd'] = G['syn_svd'] = D['svd'] = True
+                G['svd_center'] = D['svd_center'] = True
     D['freeze'] = freeze_d
 
     if gamma is not None:

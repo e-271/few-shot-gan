@@ -152,6 +152,11 @@ lr=0.003
 cfg="config-sv-all"
 sv=0
 
+elif [[ $model == "pca" ]]
+then
+lr=0.003
+cfg="config-pc-all"
+sv=0
 
 fi
 
@@ -168,7 +173,7 @@ metrics="fid10k,ppgs1k"
 fi
 
 
-for i in $(seq 6 $rep)
+for i in $(seq 1 $rep)
 do
 echo "CUDA_VISIBLE_DEVICES=$gpu \
 python run_training.py \

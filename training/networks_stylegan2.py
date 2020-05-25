@@ -47,7 +47,7 @@ def get_weight(shape, gain=1, use_wscale=True, lrmul=1, weight_var='weight', ini
 # SVD factorized weight creation
 
 def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var, 
-                   spatial, svd, factorized, sv_factors, lambda_mask):
+                   spatial, svd, factorized, sv_factors, svd_center, lambda_mask):
     # SVD factorized graph
     if svd:
         # Determine SVD variable shapes.
@@ -57,18 +57,21 @@ def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var,
                 s_shape = [sv]
                 u_shape = [shape[0] * shape[1] * shape[2], sv]
                 v_shape = [shape[3], sv]
+                center_shape = [shape[1]]
                 perm = [1, 0] 
             else:
                 sv = min(shape[2], shape[3])
                 s_shape = [shape[0], shape[1], sv]
                 u_shape = [shape[0], shape[1], shape[2], sv]
                 v_shape = [shape[0], shape[1], shape[3], sv]
+                center_shape = shape[1:]
                 perm=[0, 1, 3, 2]
         elif len(shape) == 2:
                 sv = min(shape[0], shape[1])
                 s_shape = [sv]
                 u_shape = [shape[0], sv]
                 v_shape = [shape[1], sv]
+                center_shape = [shape[1]]
                 perm = [1, 0] 
 
         # Create SVD variables
@@ -76,6 +79,7 @@ def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var,
             s = tf.get_variable("s", shape=s_shape)
             u = tf.get_variable("u", shape=u_shape)
             v = tf.get_variable("v", shape=v_shape)
+            if svd_center: center = tf.get_variable("center", shape=center_shape)
 
         # Create learnable SV coefficients
         if factorized:
@@ -97,6 +101,10 @@ def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var,
             w = get_weight(shape, gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
             if spatial:
                 w = tf.reshape(w, [-1, w.shape[-1]])
+            if svd_center: # For PCA
+                _center = tf.reduce_mean(w, 0)
+                center = center.assign(_center)
+                w = w - center
             with tf.variable_scope('SVD'):
                 _s, _u, _v = tf.svd(w)
                 assert s.shape == _s.shape
@@ -108,6 +116,7 @@ def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var,
 
         # Reconstruct weights from SVD factorization
         w = tf.matmul(tf.matmul(u, tf.linalg.diag(s)), tf.transpose(v, perm=perm))
+        if svd_center: w += center
         w = tf.reshape(w, shape)
 
     # Normal weight creation
@@ -119,25 +128,35 @@ def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var,
 #----------------------------------------------------------------------------
 # Fully-connected layer.
 
-def dense_layer(x, fmaps, gain=1, use_wscale=True, lrmul=1, weight_var='weight', svd=False, factorized=False, lambda_mask=None, sv_factors=None):
+def dense_layer(x, fmaps, gain=1, use_wscale=True, lrmul=1, weight_var='weight', svd=False, factorized=False, lambda_mask=None, sv_factors=None, svd_center=False):
     if len(x.shape) > 2:
         x = tf.reshape(x, [-1, np.prod([d.value for d in x.shape[1:]])])
     w = get_svd_weight([x.shape[1].value, fmaps], 
                        gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var, 
-                       spatial=False, svd=svd, factorized=factorized, sv_factors=sv_factors, lambda_mask=lambda_mask)
+                       spatial=False, 
+                       svd=svd, 
+                       factorized=factorized, 
+                       sv_factors=sv_factors, 
+                       svd_center=svd_center, 
+                       lambda_mask=lambda_mask)
     w = tf.cast(w, x.dtype)
     return tf.matmul(x, w)
 
 #----------------------------------------------------------------------------
 # Convolution layer with optional upsampling or downsampling.
 
-def conv2d_layer(x, fmaps, kernel, up=False, down=False, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, weight_var='weight', svd=False, factorized=False, sv_factors=None, adapt_func='training.networks_stylegan2.apply_identity', lambda_mask=None, spatial=False):
+def conv2d_layer(x, fmaps, kernel, up=False, down=False, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, weight_var='weight', svd=False, factorized=False, sv_factors=None, svd_center=False, adapt_func='training.networks_stylegan2.apply_identity', lambda_mask=None, spatial=False):
     assert not (up and down)
     assert kernel >= 1 and kernel % 2 == 1
     x_prev = x
     w = get_svd_weight([kernel, kernel, x.shape[1].value, fmaps], 
                        gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var, 
-                       spatial=spatial, svd=svd, factorized=factorized, sv_factors=sv_factors, lambda_mask=lambda_mask)
+                       spatial=spatial, 
+                       svd=svd, 
+                       factorized=factorized, 
+                       sv_factors=sv_factors, 
+                       svd_center=svd_center, 
+                       lambda_mask=lambda_mask)
     if up:
         x = upsample_conv_2d(x, tf.cast(w, x.dtype), data_format='NCHW', k=resample_kernel)
     elif down:
@@ -257,13 +276,13 @@ def apply_adaptive_scale_resshift(x, x_prev):
 # Modulated convolution layer.
 
 
-def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate=True, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, fused_modconv=True, weight_var='weight', mod_weight_var='mod_weight', mod_bias_var='mod_bias', adapt_func='training.networks_stylegan2.apply_identity', rho_in=1, svd=False, factorized=False, sv_factors=None, lambda_mask=None, spatial=False):
+def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate=True, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, fused_modconv=True, weight_var='weight', mod_weight_var='mod_weight', mod_bias_var='mod_bias', adapt_func='training.networks_stylegan2.apply_identity', rho_in=1, svd=False, factorized=False, sv_factors=None, svd_center=False, lambda_mask=None, spatial=False):
     assert not (up and down)
     assert kernel >= 1 and kernel % 2 == 1
     x_prev = x
     w = get_svd_weight([kernel, kernel, x.shape[1].value, fmaps], 
                        gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var, 
-                       spatial=spatial, svd=svd, factorized=factorized, sv_factors=sv_factors, lambda_mask=lambda_mask)
+                       spatial=spatial, svd=svd, factorized=factorized, sv_factors=sv_factors, svd_center=svd_center, lambda_mask=lambda_mask)
     # w = _get_conv_w(x, fmaps, kernel, gain, use_wscale, lrmul, weight_var, svd, factorized, sv_factors, lambda_mask)
     ww = w[np.newaxis] # [BkkIO] Introduce minibatch dimension.
 
@@ -445,6 +464,7 @@ def G_mapping(
     map_svd                 = False, # TODO replace with dictionary of SVD args
     factorized              = False,
     sv_factors              = 0,
+    svd_center               = False,
     lambda_mask             = {},
     **_kwargs):                             # Ignore unrecognized keyword args.
 
@@ -485,6 +505,7 @@ def G_mapping(
                                            svd=map_svd,
                                            factorized=factorized,
                                            sv_factors=sv_factors,
+                                           svd_center=svd_center, 
                                            lambda_mask=lambda_mask), act=act, lrmul=mapping_lrmul)
 
     # Broadcast.
@@ -633,6 +654,7 @@ def G_synthesis_stylegan2(
     syn_svd             = False, # TODO replace with dictionary of SVD args
     factorized          = False,
     sv_factors          = 0,
+    svd_center          = False,
     spatial             = False,
     lambda_mask         = {},
     **_kwargs):                         # Ignore unrecognized keyword args.
@@ -678,6 +700,7 @@ def G_synthesis_stylegan2(
                                         svd=syn_svd, 
                                         factorized=factorized, 
                                         sv_factors=sv_factors, 
+                                        svd_center=svd_center, 
                                         spatial=spatial, 
                                         lambda_mask=lambda_mask)
         # Normal behavior
@@ -693,6 +716,7 @@ def G_synthesis_stylegan2(
                                         svd=syn_svd, 
                                         factorized=factorized, 
                                         sv_factors=sv_factors, 
+                                        svd_center=svd_center, 
                                         spatial=spatial, 
                                         lambda_mask=lambda_mask)
         if randomize_noise:
@@ -876,6 +900,7 @@ def D_stylegan2(
     factorized          = False,
     lambda_mask         = None,
     sv_factors          = 0,
+    svd_center          = False,
     spatial             = False,
     adapt_func          = 'training.networks_stylegan2.apply_identity', # Scale func for modulated conv2d.
     cos_output          = False,         # Use cosine similarity to class weight vectors.
@@ -908,6 +933,7 @@ def D_stylegan2(
                                             svd=svd, 
                                             factorized=factorized, 
                                             sv_factors=sv_factors, 
+                                            svd_center=svd_center, 
                                             spatial=spatial, 
                                             adapt_func=adapt_func, 
                                             lambda_mask=lambda_mask), act=act)
@@ -916,6 +942,7 @@ def D_stylegan2(
                                 svd=svd, 
                                 factorized=factorized, 
                                 sv_factors=sv_factors, 
+                                svd_center=svd_center, 
                                 spatial=spatial,
                                 adapt_func=adapt_func, 
                                 lambda_mask=lambda_mask), act=act)
@@ -951,6 +978,7 @@ def D_stylegan2(
                                             svd=svd, 
                                             factorized=factorized, 
                                             sv_factors=sv_factors, 
+                                            svd_center=svd_center, 
                                             spatial=spatial, 
                                             adapt_func=adapt_func, 
                                             lambda_mask=lambda_mask), act=act)
@@ -959,6 +987,7 @@ def D_stylegan2(
                                             svd=svd, 
                                             factorized=factorized, 
                                             sv_factors=sv_factors, 
+                                            svd_center=svd_center, 
                                             lambda_mask=lambda_mask), act=act)
 
     if cos_output:
@@ -986,6 +1015,7 @@ def D_stylegan2(
                                                 svd=svd, 
                                                 factorized=factorized, 
                                                 sv_factors=sv_factors, 
+                                                svd_center=svd_center, 
                                                 lambda_mask=lambda_mask))
         scores_out = x
 
