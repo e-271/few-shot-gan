@@ -167,6 +167,10 @@ class CAS(metric_base.MetricBase):
         fake_labels = self._get_random_labels_tf(self.minibatch_per_gpu)
         fake_imgs = Gs.get_output_for(latents, fake_labels, np.array([rho]), **Gs_kwargs)
         fake_imgs = tf.image.resize(tf.transpose(fake_imgs, [0, 2, 3, 1]), self.img_size)
+        if fake_imgs.shape[3] == 1: fake_imgs = tf.concat([fake_imgs]*3, axis=3)
+        if train_imgs.shape[3] == 1: train_imgs = tf.concat([train_imgs]*3, axis=3)
+        if val_imgs.shape[3] == 1: val_imgs = tf.concat([val_imgs]*3, axis=3)
+
         self._create_keras_classifier()
         acc = self._get_keras_cas(fake_imgs, fake_labels, val_imgs, val_labels)
         self._report_result(acc)
