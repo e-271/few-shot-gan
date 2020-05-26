@@ -161,7 +161,7 @@ def training_loop(
     if D_args['freeze']:
         num_layers = np.log2(training_set.resolution) - 1
         layers = int(np.round(num_layers * 3. / 8.))
-        scope = []
+        scope = ['Output', 'scores_out']
         for layer in range(layers):
             scope += ['.*%d' % 2**layer]
             if 'train_scope' in D_args: scope[-1] += '.*%d' % D_args['train_scope']
@@ -257,7 +257,6 @@ def training_loop(
         d_fake = D.run(grid_fakes[:1], rho, is_validation=True)
         d_real = D.run(grid_reals[:1], rho, is_validation=True)
         print('Fake', d_fake, 'lfake', load_d_fake, 'real', d_real, 'lreal', load_d_real)
-        #assert load_d_fake[0][0] ==d_fake[0][0]
 
 
 
