@@ -23,7 +23,7 @@ lr=0.002
 metrics=""
 pt=""
 aug=0
-i=0
+rkimg=0
 nt=1
 fd="False"
 
@@ -51,10 +51,10 @@ fi
 
 
 if (( $dbg )); then
-metrics="fid1k"
+metrics=""
 elif [[ $ev == *"mini"* ]];
 then
-metrics="pgs1k"
+metrics="ppgs1k"
 else
 metrics="fid10k,ppgs1k"
 fi
@@ -89,7 +89,7 @@ elif [[ $tx == *"dog"* ]]
 then
 pt="$pkl/cat-config-f.pkl"
 aug=1
-elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]]
+elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]] || [[ $tx == *"celeba"* ]]
 then
 pt="$pkl/ffhq-config-f.pkl"
 aug=1
@@ -114,11 +114,9 @@ nt=4
 fi
 
 
-
-
 fi
 
-echo $i $pt
+echo $rkimg $pt
 
 
 sv=0
@@ -177,11 +175,6 @@ fi
 
 
 
-
-
-
-for i in $(seq 1 $rep)
-do
 echo "CUDA_VISIBLE_DEVICES=$gpu \
 python run_training.py \
 --num-gpus=1 \
@@ -192,14 +185,13 @@ python run_training.py \
 --total-kimg=$kimg \
 --max-images=$N \
 --resume-pkl=$pt \
---resume-kimg=$i \
+--resume-kimg=$rkimg \
 --lrate-base=$lr \
 --result-dir=$rdir \
 --sv-factors=$sv \
 --mirror-augment=$aug\
 --net-ticks=$nt \
 --metrics=$metrics \
---skip-images=-$i \
 --freeze-d=$fd"
 
 
@@ -214,17 +206,15 @@ python run_training.py \
 --total-kimg=$kimg \
 --max-images=$N \
 --resume-pkl=$pt \
---resume-kimg=$i \
+--resume-kimg=$rkimg \
 --lrate-base=$lr \
 --result-dir=$rdir \
 --sv-factors=$sv \
 --mirror-augment=$aug \
 --net-ticks=$nt \
 --metrics=$metrics \
---skip-images=-$i \
 --freeze-d=$fd
 
-done
 
 echo "done."
 
