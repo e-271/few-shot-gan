@@ -163,7 +163,7 @@ def training_loop(
         layers = int(np.round(num_layers * 3. / 8.))
         scope = []
         for layer in range(layers):
-            scope += ['.*%d' % (training_set.resolution // 2**layer)]
+            scope += ['.*%d' % 2**layer]
             if 'train_scope' in D_args: scope[-1] += '.*%d' % D_args['train_scope']
         D_args['train_scope'] = scope
 

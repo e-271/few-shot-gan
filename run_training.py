@@ -114,6 +114,7 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
 
     assert config_id in _valid_configs
     desc += '-' + config_id
+    if spatial_svd: desc += '-spc'
 
     desc += '-%dimg' % (-1 if max_images==None else max_images)
 

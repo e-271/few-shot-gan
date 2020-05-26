@@ -57,7 +57,7 @@ def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var,
                 s_shape = [sv]
                 u_shape = [shape[0] * shape[1] * shape[2], sv]
                 v_shape = [shape[3], sv]
-                center_shape = [shape[1]]
+                center_shape = [shape[-1]]
                 perm = [1, 0] 
             else:
                 sv = min(shape[2], shape[3])
