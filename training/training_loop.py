@@ -135,7 +135,7 @@ def training_loop(
     save_tf_graph           = True,    # Include full TensorFlow computation graph in the tfevents file?
     save_weight_histograms  = True,    # Include weight histograms in the tfevents file?
     plot_rho_terp           = False,    # NOTE: Requires NumPy > 1.16 Save plot interpolating rho
-    plot_latent_terp        = False,    # NOTE: Requires NumPy > 1.16 Save plot interpolating through latent space
+    plot_latent_terp        = True,    # NOTE: Requires NumPy > 1.16 Save plot interpolating through latent space
     plot_latent_terp_rhos   = [1.0],    # Rhos for latent interpolation plot
     fid_rhos                = [1.0],    # Rhos for latent interpolation plot
     resume_pkl              = None,     # Network pickle to resume training from, None = train from scratch.
@@ -240,8 +240,8 @@ def training_loop(
 
 
     # Reduce minibatch size to fit in 16GB GPU memory
-    if ('factorized' in G_args or 'svd' in G_args) and grid_reals.shape[2] >= 1024:
-        sched_args.minibatch_gpu_base = 1   
+    if grid_reals.shape[2] >= 1024:
+        sched_args.minibatch_gpu_base = 2
     print('Batch size', sched_args.minibatch_gpu_base)
 
     # Print layers and generate initial image snapshot.
