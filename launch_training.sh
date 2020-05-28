@@ -51,7 +51,7 @@ fi
 
 
 if (( $dbg )); then
-metrics=""
+metrics="None"
 elif [[ $ev == *"mini"* ]];
 then
 metrics="ppgs1k"
@@ -89,7 +89,7 @@ elif [[ $tx == *"dog"* ]]
 then
 pt="$pkl/cat-config-f.pkl"
 aug=1
-elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]] || [[ $tx == *"celeba"* ]]
+elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]] || [[ $tx == *"celeba"* ]] || [[ $tx == *"rem"* ]]
 then
 pt="$pkl/ffhq-config-f.pkl"
 aug=1
@@ -105,7 +105,7 @@ pt="$pkl/cifar10_cond.pkl"
 metrics="$metrics,cas10k"
 aug=1
 nt=4
-elif [[ $tx == *"mnist_5-9" ]]
+elif [[ $tx == *"5-9" ]]
 then
 pt="$pkl/mnist_0-4_cond.pkl"
 metrics="$metrics,cas10k"
@@ -115,6 +115,7 @@ fi
 
 
 fi
+
 
 echo $rkimg $pt
 
