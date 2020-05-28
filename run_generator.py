@@ -10,6 +10,7 @@ import PIL.Image
 import dnnlib
 import dnnlib.tflib as tflib
 import re
+import os
 import sys
 from dnnlib import EasyDict
 from training import dataset
@@ -66,7 +67,7 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle, layer_dset
         tflib.set_vars({var: rnd.randn(*var.shape.as_list()) for var in noise_vars}) # [height, width]
         rho = np.array([1])
         images = Gs.run(z, None, rho, **Gs_kwargs) # [minibatch, height, width, channel]
-        PIL.Image.fromarray(images[0], 'RGB').save(dnnlib.make_run_dir_path('seed%04d.png' % seed))     
+        PIL.Image.fromarray(images[0], 'RGB').save(dnnlib.make_run_dir_path('seed%04d.jpg' % seed))     
 
         
         sz=10
@@ -78,7 +79,7 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle, layer_dset
            terp_fakes.append(terp_fake)
         terp_fakes = np.concatenate(terp_fakes, 2)
         print(terp_fakes.shape)
-        PIL.Image.fromarray(terp_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('terp_rho_seed%04d.png' % seed))
+        PIL.Image.fromarray(terp_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('terp_rho_seed%04d.jpg' % seed))
 
 
         terp_start, terp_stop = z, rnd.randn(1, *Gs.input_shape[1:])
@@ -89,7 +90,7 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle, layer_dset
             terp_fakes.append(terp_fake)
         terp_fakes=np.concatenate(terp_fakes, 2)
         print(terp_fakes.shape)
-        PIL.Image.fromarray(terp_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('terp_latent_seed%04d.png' % seed))
+        PIL.Image.fromarray(terp_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('terp_latent_seed%04d.jpg' % seed))
 
 
 #----------------------------------------------------------------------------
@@ -125,7 +126,7 @@ def style_mixing_example(network_pkl, row_seeds, col_seeds, truncation_psi, col_
 
     print('Saving images...')
     for (row_seed, col_seed), image in image_dict.items():
-        PIL.Image.fromarray(image, 'RGB').save(dnnlib.make_run_dir_path('%d-%d.png' % (row_seed, col_seed)))
+        PIL.Image.fromarray(image, 'RGB').save(dnnlib.make_run_dir_path('%d-%d.jpg' % (row_seed, col_seed)))
 
     print('Saving image grid...')
     _N, _C, H, W = Gs.output_shape
@@ -140,7 +141,7 @@ def style_mixing_example(network_pkl, row_seeds, col_seeds, truncation_psi, col_
             if col_seed is None:
                 key = (row_seed, row_seed)
             canvas.paste(PIL.Image.fromarray(image_dict[key], 'RGB'), (W * col_idx, H * row_idx))
-    canvas.save(dnnlib.make_run_dir_path('grid.png'))
+    canvas.save(dnnlib.make_run_dir_path('grid.jpg'))
 
 #----------------------------------------------------------------------------
 
@@ -214,7 +215,8 @@ Run 'python %(prog)s <subcommand> --help' for subcommand help.''',
     sc.num_gpus = 1
     sc.submit_target = dnnlib.SubmitTarget.LOCAL
     sc.local.do_not_copy_source_files = True
-    sc.run_dir_root = kwargs.pop('result_dir')
+    sc.run_dir_root = os.path.dirname(kwargs['network_pkl']) + '/gen_%s' % kwargs['network_pkl'].split('/')[-1].split('.')[0].split('-')[-1]
+    kwargs.pop('result_dir')
     sc.run_desc = subcmd
 
     func_name_map = {
