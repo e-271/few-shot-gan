@@ -51,7 +51,7 @@ fi
 
 
 if (( $dbg )); then
-metrics=""
+metrics="ppgs1k"
 elif [[ $ev == *"mini"* ]];
 then
 metrics="ppgs1k"
@@ -81,6 +81,10 @@ elif [[ $tx == *"tower"* ]]
 then
 pt="$pkl/church-config-f.pkl"
 aug=1
+elif [[ $tx == *"flower"* ]]
+then
+pt="$pkl/church-config-f.pkl"
+aug=1
 elif [[ $tx == *"bus"* ]]
 then
 pt="$pkl/car-config-f.pkl"
@@ -89,7 +93,7 @@ elif [[ $tx == *"dog"* ]]
 then
 pt="$pkl/cat-config-f.pkl"
 aug=1
-elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]] || [[ $tx == *"celeba"* ]]
+elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]] || [[ $tx == *"celeba"* ]] || [[ $tx == *"cat"* ]] || [[ $tx == *"rem"* ]]
 then
 pt="$pkl/ffhq-config-f.pkl"
 aug=1
@@ -105,7 +109,7 @@ pt="$pkl/cifar10_cond.pkl"
 metrics="$metrics,cas10k"
 aug=1
 nt=4
-elif [[ $tx == *"mnist_5-9" ]]
+elif [[ $tx == *"5-9" ]]
 then
 pt="$pkl/mnist_0-4_cond.pkl"
 metrics="$metrics,cas10k"
@@ -174,6 +178,13 @@ sv=0
 fi
 
 
+for s in $(seq 1 $rep)
+do
+
+if [[ $tx == *"5-9" ]]
+then 
+tx=$tx_$s
+fi
 
 echo "CUDA_VISIBLE_DEVICES=$gpu \
 python run_training.py \
@@ -215,6 +226,7 @@ python run_training.py \
 --metrics=$metrics \
 --freeze-d=$fd
 
+done
 
 echo "done."
 
