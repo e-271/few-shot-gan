@@ -485,7 +485,7 @@ def G_mapping(
 
     # Embed labels and concatenate them with latents.
     if label_size:
-        with tf.variable_scope('LabelConcat/adapt'): # Need to relearn label mapping in adaptation
+        with tf.variable_scope('LabelConcat'): # Need to relearn label mapping in adaptation
             w = tf.get_variable('weight', shape=[label_size, latent_size], initializer=tf.initializers.random_normal())
             y = tf.matmul(labels_in, tf.cast(w, dtype))
             x = tf.concat([x, y], axis=1)

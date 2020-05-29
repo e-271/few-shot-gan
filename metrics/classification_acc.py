@@ -160,15 +160,15 @@ class CAS(metric_base.MetricBase):
         val_imgs, val_labels = self._get_minibatch_tf(val_dset)
         self.dset_size = val_dset.get_length()
         self.num_class = val_labels.shape[-1]
-        train_dset = dataset.load_dataset(data_dir=self._data_dir, **dict(self._dataset_args_train, max_images=None))
-        train_imgs, train_labels = self._get_minibatch_tf(train_dset)
+        #train_dset = dataset.load_dataset(data_dir=self._data_dir, **dict(self._dataset_args_train, max_images=None))
+        #train_imgs, train_labels = self._get_minibatch_tf(train_dset)
         # Get generated images
         latents = tf.random_normal([self.minibatch_per_gpu] + Gs.input_shape[1:])
         fake_labels = self._get_random_labels_tf(self.minibatch_per_gpu)
         fake_imgs = Gs.get_output_for(latents, fake_labels, np.array([rho]), **Gs_kwargs)
         fake_imgs = tf.image.resize(tf.transpose(fake_imgs, [0, 2, 3, 1]), self.img_size)
         if fake_imgs.shape[3] == 1: fake_imgs = tf.concat([fake_imgs]*3, axis=3)
-        if train_imgs.shape[3] == 1: train_imgs = tf.concat([train_imgs]*3, axis=3)
+        #if train_imgs.shape[3] == 1: train_imgs = tf.concat([train_imgs]*3, axis=3)
         if val_imgs.shape[3] == 1: val_imgs = tf.concat([val_imgs]*3, axis=3)
 
         self._create_keras_classifier()

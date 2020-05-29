@@ -56,7 +56,7 @@ elif [[ $ev == *"mini"* ]];
 then
 metrics="ppgs1k"
 else
-metrics="fid10k,ppgs1k"
+metrics="fid10k,ppgs1k,lpips1k"
 fi
 
 
@@ -109,7 +109,7 @@ pt="$pkl/cifar10_cond.pkl"
 metrics="$metrics,cas10k"
 aug=1
 nt=4
-elif [[ $tx == *"5-9" ]]
+elif [[ $tx == *"5-9"* ]]
 then
 pt="$pkl/mnist_0-4_cond.pkl"
 metrics="$metrics,cas10k"
@@ -178,12 +178,14 @@ sv=0
 fi
 
 
+pfx=$tx
 for s in $(seq 1 $rep)
 do
 
-if [[ $tx == *"5-9" ]]
+if [[ $pfx == *"5-9"* ]]
 then 
-tx=$tx_$s
+tx=${pfx}_${s}
+echo hiiiii
 fi
 
 echo "CUDA_VISIBLE_DEVICES=$gpu \
