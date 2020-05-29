@@ -61,7 +61,8 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle):
     Gs_kwargs.output_transform = dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True)
     Gs_kwargs.randomize_noise = False
 
-    Gs_lambda_mask = {var: np.ones(Gs.vars[var].shape[-1]) for var in Gs.vars if 'SVD/s' in var}
+    # Gs_lambda_mask = {var: np.ones(Gs.vars[var].shape[-1]) for var in Gs.vars if 'adapt/lambda' in var}
+    Gs_lambda_mask = {var: 1./tflib.run(Gs.vars[var]) for var in Gs.vars if 'adapt/lambda' in var}
     # Gs_kwargs['lambda_mask'] = Gs_lambda_mask
 
     G_lambda_lists = [var for var in Gs.vars if 'adapt/lambda' in var]
@@ -77,33 +78,43 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle):
         rho = np.array([1])
 
         if layer_toggle:
+            layer_fakes_map = []
+            layer_fakes_syn = []
             for name in G_lambda_lists:
                 # Get variables under name scope as tensor
+                # lambdas = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=name)[0]
+                # # Get values as numpy arrays
+                # lambda_values = tflib.run(lambdas)
+                # Gs_lambda_mask[name] = 1. / lambda_values
                 print(name)
-                lambdas = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=name)[0]
-                # Get values as numpy arrays
-                lambda_values = tflib.run(lambdas)
-                Gs_lambda_mask[name] = 1. / lambda_values
+                Gs_lambda_mask[name] = np.ones(Gs.vars[name].shape[-1])
                 images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
 
                 save_name = name.replace('/', '_')
                 PIL.Image.fromarray(images[0], 'RGB').save(dnnlib.make_run_dir_path('%s_seed%04d.jpg' % (save_name, seed)))
 
-                sz=10
+                if 'G_mapping' in name:
+                    layer_fakes_map.append(images)
+                else:
+                    layer_fakes_syn.append(images)
+                # sz=10
+                #
+                # terp_start, terp_stop = z, rnd.randn(1, *Gs.input_shape[1:])
+                # terp_latent = np.linspace(terp_start, terp_stop, sz)
+                # terp_fakes = []
+                # for j in range(sz):
+                #     terp_fake = Gs.run(terp_latent[j], None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs)
+                #     terp_fakes.append(terp_fake)
+                # terp_fakes=np.concatenate(terp_fakes, 2)
+                # print(terp_fakes.shape)
+                # PIL.Image.fromarray(terp_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('terp_latent_%s_seed%04d.jpg' % (save_name, seed)))
 
-                terp_start, terp_stop = z, rnd.randn(1, *Gs.input_shape[1:])
-                terp_latent = np.linspace(terp_start, terp_stop, sz)
-                terp_fakes = []
-                for j in range(sz):
-                    terp_fake = Gs.run(terp_latent[j], None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs)
-                    terp_fakes.append(terp_fake)
-                terp_fakes=np.concatenate(terp_fakes, 2)
-                print(terp_fakes.shape)
-                PIL.Image.fromarray(terp_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('terp_latent_%s_seed%04d.jpg' % (save_name, seed)))
-
-                # set the value back to 1
-                Gs_lambda_mask[name] = np.ones(Gs.vars[name].shape[-1])
-
+                # set the value back to 1 / lambdas
+                Gs_lambda_mask[name] = 1./ tflib.run(Gs.vars[name])
+            layer_fakes_map=np.concatenate(layer_fakes_map, 2)
+            PIL.Image.fromarray(layer_fakes_map[0], 'RGB').save(dnnlib.make_run_dir_path('G_mapping_seed%04d.jpg' % (seed)))
+            layer_fakes_syn=np.concatenate(layer_fakes_syn, 2)
+            PIL.Image.fromarray(layer_fakes_syn[0], 'RGB').save(dnnlib.make_run_dir_path('G_synthesis_seed%04d.jpg' % (seed)))
         else:
             # not toggle layers
             images = Gs.run(z, None, rho, **Gs_kwargs) # [minibatch, height, width, channel]
