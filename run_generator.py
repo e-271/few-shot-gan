@@ -77,9 +77,10 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle):
         tflib.set_vars({var: rnd.randn(*var.shape.as_list()) for var in noise_vars}) # [height, width]
         rho = np.array([1])
 
-        if layer_toggle:
-            layer_fakes_map = []
-            layer_fakes_syn = []
+        if layer_toggle == 1:
+            images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
+            layer_fakes_map = [images]
+            layer_fakes_syn = [images]
             for name in G_lambda_lists:
                 # Get variables under name scope as tensor
                 # lambdas = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=name)[0]
@@ -111,10 +112,38 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle):
 
                 # set the value back to 1 / lambdas
                 Gs_lambda_mask[name] = 1./ tflib.run(Gs.vars[name])
+
             layer_fakes_map=np.concatenate(layer_fakes_map, 2)
             PIL.Image.fromarray(layer_fakes_map[0], 'RGB').save(dnnlib.make_run_dir_path('G_mapping_seed%04d.jpg' % (seed)))
             layer_fakes_syn=np.concatenate(layer_fakes_syn, 2)
             PIL.Image.fromarray(layer_fakes_syn[0], 'RGB').save(dnnlib.make_run_dir_path('G_synthesis_seed%04d.jpg' % (seed)))
+        elif layer_toggle == 2:
+            # toggle mapping layers / synthesis layers
+            # do not use adaptive lambdas
+            images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs)
+            layer_fakes = [images]
+            # keep mapping adaptive lambdas
+            for name in G_lambda_lists:
+                if 'G_mapping' in name:
+                    print(name)
+                    Gs_lambda_mask[name] = np.ones(Gs.vars[name].shape[-1])
+            images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
+            layer_fakes.append(images)
+            # kepp synthesis adaptive lambdas
+            Gs_lambda_mask = {var: 1./tflib.run(Gs.vars[var]) for var in Gs.vars if 'adapt/lambda' in var}
+            for name in G_lambda_lists:
+                if 'G_synthesis' in name:
+                    print(name)
+                    Gs_lambda_mask[name] = np.ones(Gs.vars[name].shape[-1])
+            images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
+            layer_fakes.append(images)
+            # use all adaptive lambdas
+            Gs_lambda_mask = {var: np.ones(Gs.vars[var].shape[-1]) for var in Gs.vars if 'adapt/lambda' in var}
+            images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
+            layer_fakes.append(images)
+            # concatenate
+            layer_fakes=np.concatenate(layer_fakes, 2)
+            PIL.Image.fromarray(layer_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('G_seed%04d.jpg' % (seed)))
         else:
             # not toggle layers
             images = Gs.run(z, None, rho, **Gs_kwargs) # [minibatch, height, width, channel]
