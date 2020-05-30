@@ -11,7 +11,7 @@ seeds="116"
 pkl="/work/newriver/jiaruixu/results/personalize/rem25_25shot/pca/00004-stylegan2-rem25-rem25-1gpu-config-pc-all-spc-25img-aug-0sv/network-snapshot-000020.pkl"
 # pkl="/work/newriver/jiaruixu/results/personalize/4978_31shot/pca/00002-stylegan2-4978-4978-1gpu-config-pc-all-spc--31img-aug-0sv/network-snapshot-000020.pkl"
 gpu=$1
-l=2
+l=3
 
 CUDA_VISIBLE_DEVICES=$gpu python run_generator.py generate-images --network=$pkl --seeds=$seeds --layer-toggle=$l
 # python run_generator.py generate-images --network=$pkl --seeds=$seeds --layer-toggle=$l --layer-dset=obama25 --layer-ddir=/work/newriver/erobb/datasets/mini/faces

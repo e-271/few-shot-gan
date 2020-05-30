@@ -33,7 +33,8 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle):
     #     print('Loading networks from "%s"...' % network_pkl)
     #     rG, rD, rGs = pretrained_networks.load_networks(network_pkl)
     #
-    #     G_lambda_mask = {var: np.ones(rGs.vars[var].shape[-1]) for var in rGs.vars if 'adapt/lambda' in var}
+    #     G_lambda_mask = {var: np.ones(rGs.vars[var].shape[-1]) for var in rGs.vars if 'SVD/s' in var}
+    #     # G_lambda_mask = {var: 1./tflib.run(rGs.vars[var]) for var in rGs.vars if 'SVD/s' in var}
     #     D_lambda_mask = {'D/' + var: np.ones(rD.vars[var].shape[-1]) for var in rD.vars if 'SVD/s' in var}
     #
     #     G_args         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
@@ -41,8 +42,9 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle):
     #     G_args['spatial'] = D_args['spatial'] = True
     #     G_args['map_svd'] = G_args['syn_svd'] = D_args['svd'] = True
     #     G_args['svd_center'] = D_args['svd_center'] = True
-    #     # G_args['lambda_mask'] = G_lambda_mask
-    #     # D_args['lambda_mask'] = D_lambda_mask
+    #     G_args['factorized'] = D_args['factorized'] = True
+    #     G_args['lambda_mask'] = G_lambda_mask
+    #     D_args['lambda_mask'] = D_lambda_mask
     #
     #     dset="anime25" # layer_dset # "anime25"
     #     dataset_args = EasyDict(tfrecord_dir=dset)
@@ -71,11 +73,11 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle):
     Gs_kwargs.output_transform = dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True)
     Gs_kwargs.randomize_noise = False
 
-    # Gs_lambda_mask = {var: np.ones(Gs.vars[var].shape[-1]) for var in Gs.vars if 'adapt/lambda' in var}
-    Gs_lambda_mask = {var: 1./tflib.run(Gs.vars[var]) for var in Gs.vars if 'adapt/lambda' in var}
+    # Gs_lambda_mask = {var: np.ones(Gs.vars[var].shape[-1]) for var in Gs.vars if 'SVD/s' in var}
+    Gs_lambda_mask = {var: 1./tflib.run(Gs.vars[var[:-1]+'adapt/lambda']) for var in Gs.vars if 'SVD/s' in var}
     # Gs_kwargs['lambda_mask'] = Gs_lambda_mask
 
-    G_lambda_lists = [var for var in Gs.vars if 'adapt/lambda' in var]
+    G_lambda_lists = [var for var in Gs.vars if 'SVD/s' in var]
 
     if truncation_psi is not None:
         Gs_kwargs.truncation_psi = truncation_psi
@@ -121,7 +123,7 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle):
                 # PIL.Image.fromarray(terp_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('terp_latent_%s_seed%04d.jpg' % (save_name, seed)))
 
                 # set the value back to 1 / lambdas
-                Gs_lambda_mask[name] = 1./ tflib.run(Gs.vars[name])
+                Gs_lambda_mask[name] = 1./ tflib.run(Gs.vars[name[:-1]+'adapt/lambda'])
 
             layer_fakes_map=np.concatenate(layer_fakes_map, 2)
             PIL.Image.fromarray(layer_fakes_map[0], 'RGB').save(dnnlib.make_run_dir_path('G_mapping_seed%04d.jpg' % (seed)))
@@ -140,7 +142,7 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle):
             images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
             layer_fakes.append(images)
             # kepp synthesis adaptive lambdas
-            Gs_lambda_mask = {var: 1./tflib.run(Gs.vars[var]) for var in Gs.vars if 'adapt/lambda' in var}
+            Gs_lambda_mask = {var: 1./tflib.run(Gs.vars[var[:-1]+'adapt/lambda']) for var in Gs.vars if 'SVD/s' in var}
             for name in G_lambda_lists:
                 if 'G_synthesis' in name:
                     print(name)
@@ -148,7 +150,60 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle):
             images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
             layer_fakes.append(images)
             # use all adaptive lambdas
-            Gs_lambda_mask = {var: np.ones(Gs.vars[var].shape[-1]) for var in Gs.vars if 'adapt/lambda' in var}
+            Gs_lambda_mask = {var: np.ones(Gs.vars[var].shape[-1]) for var in Gs.vars if 'SVD/s' in var}
+            images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
+            layer_fakes.append(images)
+            # concatenate
+            layer_fakes=np.concatenate(layer_fakes, 2)
+            PIL.Image.fromarray(layer_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('G_seed%04d.jpg' % (seed)))
+        elif layer_toggle == 3:
+            # toggle mapping layers / synthesis layers
+            # do not use adaptive lambdas
+            images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs)
+            layer_fakes = [images]
+            # keep mapping adaptive lambdas
+            for name in G_lambda_lists:
+                if 'G_mapping' in name:
+                    if 'Dense0' in name or 'Dense1' in name or 'Dense2' in name or 'Dense3' in name:
+                        print(name)
+                        Gs_lambda_mask[name] = np.ones(Gs.vars[name].shape[-1])
+            images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
+            layer_fakes.append(images)
+            #
+            Gs_lambda_mask = {var: 1./tflib.run(Gs.vars[var[:-1]+'adapt/lambda']) for var in Gs.vars if 'SVD/s' in var}
+            for name in G_lambda_lists:
+                if 'G_mapping' in name:
+                    if 'Dense4' in name or 'Dense5' in name or 'Dense6' in name or 'Dense7' in name:
+                        print(name)
+                        Gs_lambda_mask[name] = np.ones(Gs.vars[name].shape[-1])
+            images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
+            layer_fakes.append(images)
+            # kepp synthesis adaptive lambdas
+            Gs_lambda_mask = {var: 1./tflib.run(Gs.vars[var[:-1]+'adapt/lambda']) for var in Gs.vars if 'SVD/s' in var}
+            for name in G_lambda_lists:
+                if 'G_synthesis' in name and 'Conv' in name:
+                    print(name)
+                    Gs_lambda_mask[name] = np.ones(Gs.vars[name].shape[-1])
+            images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
+            layer_fakes.append(images)
+            # kepp synthesis adaptive lambdas
+            Gs_lambda_mask = {var: 1./tflib.run(Gs.vars[var[:-1]+'adapt/lambda']) for var in Gs.vars if 'SVD/s' in var}
+            for name in G_lambda_lists:
+                if 'G_synthesis' in name and 'Conv0_up' in name:
+                    print(name)
+                    Gs_lambda_mask[name] = np.ones(Gs.vars[name].shape[-1])
+            images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
+            layer_fakes.append(images)
+            # kepp synthesis adaptive lambdas
+            Gs_lambda_mask = {var: 1./tflib.run(Gs.vars[var[:-1]+'adapt/lambda']) for var in Gs.vars if 'SVD/s' in var}
+            for name in G_lambda_lists:
+                if 'G_synthesis' in name and 'Conv1' in name:
+                    print(name)
+                    Gs_lambda_mask[name] = np.ones(Gs.vars[name].shape[-1])
+            images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
+            layer_fakes.append(images)
+            # use all adaptive lambdas
+            Gs_lambda_mask = {var: np.ones(Gs.vars[var].shape[-1]) for var in Gs.vars if 'SVD/s' in var}
             images = Gs.run(z, None, rho, lambda_mask=Gs_lambda_mask, **Gs_kwargs) # [minibatch, height, width, channel]
             layer_fakes.append(images)
             # concatenate
