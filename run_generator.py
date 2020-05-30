@@ -28,14 +28,25 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle):
     # vi +552 training/networks_stylegan2.py
     # rho_in * (latent_idx == <layer>)
 
+    # For layerwise visualization of PCA-GAN
     # if layer_toggle:
-    #     stylegan2_network.layer_toggle = layer_toggle
+    #     print('Loading networks from "%s"...' % network_pkl)
+    #     rG, rD, rGs = pretrained_networks.load_networks(network_pkl)
+    #
+    #     G_lambda_mask = {var: np.ones(rGs.vars[var].shape[-1]) for var in rGs.vars if 'adapt/lambda' in var}
+    #     D_lambda_mask = {'D/' + var: np.ones(rD.vars[var].shape[-1]) for var in rD.vars if 'SVD/s' in var}
+    #
     #     G_args         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
     #     D_args         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
-    #     G_args['adapt_func'] = D_args['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
-    #     dset=layer_dset # "anime25"
+    #     G_args['spatial'] = D_args['spatial'] = True
+    #     G_args['map_svd'] = G_args['syn_svd'] = D_args['svd'] = True
+    #     G_args['svd_center'] = D_args['svd_center'] = True
+    #     # G_args['lambda_mask'] = G_lambda_mask
+    #     # D_args['lambda_mask'] = D_lambda_mask
+    #
+    #     dset="anime25" # layer_dset # "anime25"
     #     dataset_args = EasyDict(tfrecord_dir=dset)
-    #     data_dir=layer_ddir # "/mnt/slow_ssd/erobb/datasets"
+    #     data_dir="/work/newriver/jiaruixu/datasets/mini/faces" # layer_ddir # "/mnt/slow_ssd/erobb/datasets"
     #     # Load training set.
     #     dnnlib.tflib.init_tf()
     #     training_set = dataset.load_dataset(data_dir=dnnlib.convert_path(data_dir), verbose=True, **dataset_args)
@@ -43,8 +54,7 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle):
     #     _G = tflib.Network('G', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **G_args)
     #     _D = tflib.Network('D', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **D_args)
     #     Gs = _G.clone('Gs')
-    #     print('Loading networks from "%s"...' % network_pkl)
-    #     rG, rD, rGs = pretrained_networks.load_networks(network_pkl)
+    #
     #     _G.copy_vars_from(rG);
     #     _D.copy_vars_from(rD);
     #     Gs.copy_vars_from(rGs)
