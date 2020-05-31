@@ -77,7 +77,7 @@ pt="$pkl/EngFnt.pkl"
 elif [[ $tx == *"EngFnt"* ]]
 then
 pt="$pkl/EngFnt.pkl" 
-elif [[ $tx == *"tower"* ]]
+elif [[ $tx == *"tower"* ]] || [[ $tx == *"gogh"* ]]
 then
 pt="$pkl/church-config-f.pkl"
 aug=1
@@ -93,7 +93,7 @@ elif [[ $tx == *"dog"* ]]
 then
 pt="$pkl/cat-config-f.pkl"
 aug=1
-elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]] || [[ $tx == *"celeba"* ]] || [[ $tx == *"cat"* ]] || [[ $tx == *"rem"* ]]
+elif [[ $tx == *"danbooru"* ]] || [[ $tx == *"anime"* ]] || [[ $tx == *"rei"* ]] || [[ $tx == *"obama"* ]] || [[ $tx == *"celeba"* ]] || [[ $tx == *"cat"* ]] || [[ $tx == *"rem"* ]] || [[ $tx == *"portrait"* ]]
 then
 pt="$pkl/ffhq-config-f.pkl"
 aug=1
@@ -178,6 +178,9 @@ sv=0
 
 fi
 
+# TODO
+aug=0
+nt=4
 
 pfx=$tx
 for s in $(seq 1 $rep)
