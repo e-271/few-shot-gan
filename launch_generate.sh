@@ -1,19 +1,20 @@
 #!/bin/bash
 
 # seeds="100-200"
-seeds="116"
+seeds="182,188"
 #dir="/mnt/hdd/erobb/plots/table1/kannada4K/00008-stylegan2-kannada4K-2gpu-config-f-25img-rho0.0E00-lr2.0E-04/"
 #dir="/mnt/hdd/erobb/plots/table1/kannada4K/00005-stylegan2-kannada4K-2gpu-config-f-10img-rho0.0E00-lr2.0E-04"
 #dir="/mnt/hdd/erobb/plots/table1/kannada4K/00008-stylegan2-kannada4K-2gpu-config-f-25img-rho0.0E00-lr2.0E-04"
 #dir=$1
 # pkl=$1
 # pkl="/work/newriver/jiaruixu/results/arch_abl/obama25_31shot/pca/00000-stylegan2-obama25-obama25-2gpu-config-pc-all-spc-31img-aug-0sv/network-snapshot-000020.pkl"
-pkl="/work/newriver/jiaruixu/results/personalize/rem25_25shot/pca/00004-stylegan2-rem25-rem25-1gpu-config-pc-all-spc-25img-aug-0sv/network-snapshot-000020.pkl"
+pkl="/work/newriver/erobb/results/personalize/rem25_25shot/pca/00004-stylegan2-rem25-rem25-1gpu-config-pc-all-spc-25img-aug-0sv/network-snapshot-000011.pkl"
 # pkl="/work/newriver/jiaruixu/results/personalize/4978_31shot/pca/00002-stylegan2-4978-4978-1gpu-config-pc-all-spc--31img-aug-0sv/network-snapshot-000020.pkl"
 gpu=$1
-l=3
+l=2
 
-CUDA_VISIBLE_DEVICES=$gpu python run_generator.py generate-images --network=$pkl --seeds=$seeds --layer-toggle=$l
+CUDA_VISIBLE_DEVICES=$gpu python run_generator.py generate-images --network=$pkl --seeds=$seeds --layer-toggle=$l --truncation-psi=0.6
+
 # python run_generator.py generate-images --network=$pkl --seeds=$seeds --layer-toggle=$l --layer-dset=obama25 --layer-ddir=/work/newriver/erobb/datasets/mini/faces
 
 # trap "exit" INT
