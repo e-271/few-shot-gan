@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<!-- paulirish.com/2008/conditional-stylesheets-vs-css-hacks-answer-neither/ -->
+<!--[if lt IE 7 ]> <html class="ie6" lang="en"> <![endif]-->
+<!--[if IE 7 ]>    <html class="ie7" lang="en"> <![endif]-->
+<!--[if IE 8 ]>    <html class="lt-ie9" lang="en"> <![endif]-->
+<!--[if IE 9 ]>    <html class="lt-ie10" lang="en"> <![endif]-->
+<!--[if (gte IE 9)|!(IE)]><!--> <html lang="en"> <!--<![endif]-->
+<head>
+	<meta charset="UTF-8">
+	<title>Few-shot Domain Transfer for Generative Adversarial Networks - Supplementary Material</title>
+	<link href="css/foundation.css" rel="stylesheet" type="text/css" />
+	<link href="css/twentytwenty.css" rel="stylesheet" type="text/css" />
+	<!-- jQuery -->
+	<script
+		src="https://code.jquery.com/jquery-3.1.0.min.js"
+		integrity="sha256-cCueBR6CsyA4/9szpPfrX3s49M9vUU5BgtiJj06wt/s="
+		crossorigin="anonymous"></script>
+	<!-- Bootstrap -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+
+
+</head>
+<body>
+	<div class="container">
+		<div class="row">
+			<div class="col-xs-12 text-center">
+				<br>
+				<h1>Few-shot Domain Transfer for Generative Adversarial Networks</h1>
+				<br>
+			</div>
+		</div>
+		<br>
+		<div class="row">
+			<div class="col-xs-12 text-left">
+				<a href="../index.html">
+					<button type="button" class="btn btn-link">
+						<span class="glyphicon glyphicon-chevron-left" aria-hidden="true"></span> Back
+					</button>
+				</a>
+				<br>
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-xs-12 text-left">
+				<h3>Results on image transfer</h3>
+				<hr>
+				<div class="well well-sm">
+					<form class="form-inline">
+						<div class="form-group">
+							<label for="dataset-select">Dataset:&nbsp;</label>
+							<select class="form-control" id="dataset-select" oninput="ChangeDataset();">
+								<option value="3719 49">3719</option>
+								<option value="4978 49">4978</option>
+								<option value="gogh 49">gogh</option>
+								<option value="rem 49">rem</option>
+								<option value="portrait 49">portrait</option>
+								<!-- <option value="Set14 7">Set14</option> -->
+							</select>
+						</div>
+						<!-- <div class="form-group">
+							<label for="resolution-select">Resolution:&nbsp;</label>
+							<select class="form-control" id="resolution-select" oninput="ChangeDataset();">
+								<option value="4x">4x</option>
+								<option value="8x">8x</option>
+							</select>
+						</div> -->
+						&emsp;
+						<div class="form-group">
+							<label for="frame-idx-input">Frame: <span id="frame-idx">00</span> / <span id="frame-total">49</span>&nbsp;</label>
+							<!-- <span id="sequence_name" style="display:inline-block; font-weight:bold; width:150px;">: Toy&nbsp;</span> -->
+							<div class="input-group">
+								<span class="input-group-btn">
+									<button class="btn btn-info" type="button" onclick="PrevFrame();"><span class="glyphicon glyphicon-chevron-left" aria-hidden="true"></span></button>
+								</span>
+								<input type="range" class="form-control" id="frame-idx-input" min="-1" max="49" step="1" value="0" oninput="ChangeFrame();">
+								<span class="input-group-btn">
+									<button class="btn btn-info" type="button" onclick="NextFrame();"><span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span></button>
+								</span>
+							</div>
+						</div>
+					</form>
+					<hr style="margin: 7px;">
+					<h5><strong>Method:&nbsp;</strong></h5>
+					<ul class="nav nav-pills" id="current-view-ul">
+						<!-- <li role="presentation" id="tab0"><a href="javascript: void(0);" onclick="ChangeCurrentView(0);">GT</a></li> -->
+						<li role="presentation" id="tab0" class="active"><a href="javascript: void(0);" onclick="ChangeCurrentView(0);">Few-shot GAN (ours)</a></li>
+						<li role="presentation" id="tab1"><a href="javascript: void(0);" onclick="ChangeCurrentView(1);">Transfer GAN</a></li>
+						<li role="presentation" id="tab2"><a href="javascript: void(0);" onclick="ChangeCurrentView(2);">Freeze D</a></li>
+						<li role="presentation" id="tab3"><a href="javascript: void(0);" onclick="ChangeCurrentView(3);">Scale & Shift</a></li>
+						<!-- <li role="presentation" id="tab5"><a href="javascript: void(0);" onclick="ChangeCurrentView(5);">Ours</a></li> -->
+					</ul>
+				</div>
+				<!-- <center><h5 id="disclaimer-1">The slider shows images between the input (left) and the results (right).</h5></center>
+				<center><h5 id="disclaimer-2">To compare between different methoods, please slide the bar to the left and click different tabs.</h5> -->
+				</center>
+				<center><h5 id="dataset_link"><a href="http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html">CelebA dataset link</a></h5></center>
+				<center><h5 id="method_author">&nbsp;</h5></center>
+				<center><h5 id="method_title" style="font-weight:bold">&nbsp;</h5></center>
+				<center><h5 id="method_publication">&nbsp;</h5></center>
+				<center><h5 id="method_remarks"></h5></center>
+				<center><h5 id="code_link">&nbsp;</h5></center>
+			</div>
+			<!-- <div class="col-xs-12 text-center"> -->
+				<!-- <img src="../results/reflection/multi5/00000_B2.jpg" id="showoff-img" class="img-responsive"> -->
+			<!-- </div> -->
+			<div class="row" style="margin-top: 2em;" id='image_slider'>
+			  <div class="large-6 columns"  >
+			  	<div id='merge_part'>
+					<img src="../datasets/merge_3719.jpg" id="merge" style="height: 450px;"/>
+				</div>
+			  </div>
+			  <div class="large-6 columns">
+				<div class="twentytwenty-container" id='twenty_container'>
+						<img src="../results/ffhq_pre/seed0000.jpg" id="showoff-img-I" style="height: 450px;"/>
+						<img src="../results/3719/pca/seed0000.jpg" id="showoff-img-B" style="height: 450px;"/>
+				</div>
+			  </div>
+			  
+			</div>
+
+			
+
+
+			<div class="row" style="margin-top: 2em; display:none" id='video_canvas'>
+			  <div class="large-6 columns">
+			    <video id="input_video" width="425" controls="controls" onended="this.currentTime = 0; this.play();">
+					<source src="../results/reflection/Input/00001_I.mp4" type="video/mp4"/>
+				</video>
+				<h5><strong><center>Input sequence</center></strong></h5>
+			    <!-- <img src="../results/reflection/Input/00000_I2.jpg" id="showoff-video"/> -->
+			  </div>
+			</div>
+
+			<br>
+			<br>
+		</div>
+
+	</div>
+
+
+
+	<script
+  src="https://code.jquery.com/jquery-3.2.1.js"
+  integrity="sha256-DZAnKJ/6XZ9si04Hgrsxu/8s717jcIzLy3oi35EouyE="
+  crossorigin="anonymous"></script>
+    <script src="js/jquery.event.move.js"></script>
+    <script src="js/jquery.twentytwenty.js"></script>
+    <script>
+    $(function(){
+      $(".twentytwenty-container[data-orientation!='vertical']").twentytwenty({default_offset_pct: 0.7});
+      $(".twentytwenty-container[data-orientation='vertical']").twentytwenty({default_offset_pct: 0.3, orientation: 'vertical'});
+    });
+    </script>
+
+	<style type="text/css">
+.container {
+	background-color: #FBFBFC;
+}
+.teaser-img {
+	margin-top: 5px;
+	margin-bottom: 5px;
+}
+.img-responsive {
+	margin: auto;
+}
+.comparison-table {
+	table-layout: fixed;
+		word-wrap: break-word;
+}
+.comparison-table th {
+	text-align: center;
+}
+.disabled{
+    pointer-events:none;
+    opacity:0.7;
+}
+	</style>
+
+	<script type="text/javascript">
+	var currentViewList = ["input", "single0", "single1", "single2", "single3", "single4", "single5", "multi0", "multi1", "multi2", "multi3", "multi4", "multi5"];
+	var currentView = "multi5";
+	// CHANGE TO MATCH DSET FILENAMES
+    var set5_naming = ['Baby', 'Bird', 'Butterfly']
+    var set5_prev_naming = ['Baby', 'Bird', 'Butterfly', 'Head', 'Woman']
+	var set14_naming = ['Bridge', 'Coastguard', 'Foreman', 'Lenna', 'Man', 'Monarch', 'Pepper']
+	var set14_prev_naming = ['Baboon', 'Barbara', 'Bridge', 'Coastguard', 'Comic', 'Face', 'Flowers', 'Foreman', 'Lenna', 'Man', 'Monarch', 'Pepper', 'PPT3', 'Zebra']
+	// CHANGE TO MATCH INDEX ORDER TO DISPLAY EACH DATASET
+	var id_sfuffle_table_set5 = [1, 2, 3, 4, 5];
+    var id_sfuffle_table_set14 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+
+	function ChangeDataset(){
+
+		var dataset = document.getElementById("dataset-select").value.split(" ")[0];
+		
+		if(dataset=='3719'){
+			// document.getElementById("sequence_name").innerHTML = ": TGAN&nbsp;";
+			document.getElementById("dataset_link").innerHTML = "<a href='http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html'>CelebA dataset link</a>";
+		}
+
+		if(dataset=='4978'){
+			// document.getElementById("sequence_name").innerHTML = ": FD&nbsp;";
+			document.getElementById("dataset_link").innerHTML = "<a href='http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html'>CelebA dataset link</a>";
+		}
+
+		if(dataset=='gogh'){
+			// document.getElementById("sequence_name").innerHTML = ": SS&nbsp;";
+			document.getElementById("dataset_link").innerHTML = "<a href='https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix'>Gogh dataset link</a>";
+		}
+
+		if(dataset=='rem'){
+			// document.getElementById("sequence_name").innerHTML = ": PCA&nbsp;";
+			document.getElementById("dataset_link").innerHTML = "<a href='https://www.gwern.net/Danbooru2019'>Danbooru dataset link</a>";
+		}
+
+		if(dataset=='portrait'){
+			// document.getElementById("sequence_name").innerHTML = ": PCA&nbsp;";
+			document.getElementById("dataset_link").innerHTML = "<a href='https://github.com/HsinYingLee/DRIT/'>Portrait dataset link</a>";
+		}
+
+
+		var frame_total = parseInt(document.getElementById("dataset-select").value.split(" ")[1]);
+		console.log(frame_total);
+		document.getElementById("frame-total").innerHTML = frame_total;
+		document.getElementById("frame-idx-input").value = 1;
+		document.getElementById("frame-idx-input").max = frame_total;
+		ChangeFrame();
+	}
+
+	function ChangeFrame(){
+
+		var dataset = document.getElementById("dataset-select").value.split(" ")[0];
+		// var resolution = document.getElementById("resolution-select").value;
+  //               var method = $('.nav-pills .active').text();
+        var method = $('.nav-pills .active').text();
+        var pre_path = 'ffhq_pre';
+		console.log(method);
+		console.log('123');
+
+        
+        if(method=='Transfer GAN'){
+        	var method_p = 't'
+		}
+		if(method=='Freeze D'){
+        	var method_p = 'fd'
+		}
+		if(method=='Scale & Shift'){
+        	var method_p = 's'
+		}
+		if(method=='Few-shot GAN (ours)'){
+        	var method_p = 'pca'
+		}
+
+
+		if (dataset=='3719'){
+	        var merge_path = "../datasets/merge_3719.jpg";
+		}
+		if (dataset=='4978'){
+	        var merge_path = "../datasets/merge_4978.jpg";
+		}
+		if (dataset=='gogh'){
+	        var pre_path = 'church_pre';
+	        var merge_path = "../datasets/merge_gogh25.jpg";
+		}
+		if (dataset=='rem'){
+	        var merge_path = "../datasets/merge_rem25.jpg";
+		}
+		if (dataset=='portrait'){
+	        var merge_path = "../datasets/merge_portrait25.jpg";
+		}
+
+		for (let i = 0; i < 10; i++) {$('#tab' + i).removeClass("disabled");}
+
+
+		var frame_idx = parseInt(document.getElementById("frame-idx-input").value);
+		var start_idx = 0;
+		
+
+		document.getElementById("frame-idx").innerHTML = ("00" + frame_idx).slice(-2);
+
+		
+		// document.getElementById("sequence_name").innerHTML = ": "+image_nameing[parseInt(frame_idx - 1)]+"&nbsp;";
+		// CHANGE INPUT PATH
+		$("#showoff-img-I").attr("src", "../results/" + pre_path + "/seed" + ("0000" + frame_idx).slice(-4) + ".jpg").on('load', function() {
+		  console.log($("#showoff-img-I").height());
+		  var container = $(".twentytwenty-container[data-orientation!='vertical']");
+		  var h = $("#showoff-img-I").height();
+		  container.css("height", $("#showoff-img-I").height());
+		  var beforeImg = container.find("img:first");
+		  var afterImg = container.find("img:last");
+		  clip_args = beforeImg[0].style.clip.split(',')
+		  new_clip_args = [clip_args[0], clip_args[1], h+'px', clip_args[3]];
+		  beforeImg[0].style.clip = new_clip_args.join()
+		  clip_args = afterImg[0].style.clip.split(',')
+		  new_clip_args = [clip_args[0], clip_args[1], h+'px', clip_args[3]];
+		  afterImg[0].style.clip = new_clip_args.join()
+		});
+		// CHANGE RESULTS PATH
+
+		// console.log("src", "../results/" + dataset + "/" + method_p + "/seed" + ("0000" + frame_idx).slice(-4) + ".jpg");
+		document.getElementById("showoff-img-B").src = "../results/" + dataset + "/" + method_p + "/seed" + ("0000" + frame_idx).slice(-4) + ".jpg";
+		document.getElementById("merge").src = merge_path;
+	}
+
+	function NextFrame(){
+		var dataset = document.getElementById("dataset-select").value.split(" ")[0];
+		console.log(dataset);
+		var frame_total = parseInt(document.getElementById("dataset-select").value.split(" ")[1]);
+		console.log(frame_total);
+		var frame_idx = parseInt(document.getElementById("frame-idx-input").value);
+		console.log(frame_idx);
+
+		if(frame_idx < frame_total){
+			document.getElementById("frame-idx-input").value = frame_idx + 1;
+			ChangeFrame();
+		}
+
+	}
+
+	function PrevFrame(){
+		var frame_idx = parseInt(document.getElementById("frame-idx-input").value);
+		if(frame_idx > 1){
+			document.getElementById("frame-idx-input").value = frame_idx - 1;
+			ChangeFrame();
+			<!-- $(function(){ -->
+		}
+	}
+
+	function ChangeCurrentView(idx){
+		// CHANGE TEXT FOR EACH METHOD
+		if(idx == 0){
+			document.getElementById("method_author").innerHTML = "Ours";
+			document.getElementById("method_title").innerHTML = "Few-shot GAN";
+			document.getElementById("method_publication").innerHTML = "&nbsp";
+			document.getElementById("method_remarks").innerHTML = "";
+			document.getElementById("code_link").innerHTML = "&nbsp";
+		}
+		if(idx == 1){
+			document.getElementById("method_author").innerHTML = "Wang, Yaxing and Wu, Chenshen and Herranz, Luis and van de Weijer, Joost and Gonzalez-Garcia, Abel and Raducanu, Bogdan";
+			document.getElementById("method_title").innerHTML = "Transferring GANs: Generating images from limited data";
+			document.getElementById("method_publication").innerHTML = "Proceedings of the European Conference on Computer Vision (ECCV), 2018";
+			document.getElementById("method_remarks").innerHTML = "";
+			document.getElementById("code_link").innerHTML = "Code: <a href='https://github.com/yaxingwang/Transferring-GANs'>link</a>";
+		}
+		if(idx == 2){
+			document.getElementById("method_author").innerHTML = "Sangwoo Mo, Minsu Cho, Jinwoo Shin";
+			document.getElementById("method_title").innerHTML = "Freeze Discriminator: A simple baseline for fine-tuning GANs";
+			document.getElementById("method_publication").innerHTML = "IEEE Conference on Computer Vision and Pattern Recognition Workshop (CVPRW), 2020";
+			document.getElementById("method_remarks").innerHTML = "";
+			document.getElementById("code_link").innerHTML = "Code: <a href='https://github.com/sangwoomo/FreezeD'>link</a>";
+		}
+		if(idx == 3){
+			document.getElementById("method_author").innerHTML = "Noguchi, Atsuhiro and Harada, Tatsuya";
+			document.getElementById("method_title").innerHTML = "Image generation from small datasets via batch statistics adaptation";
+			document.getElementById("method_publication").innerHTML = "Proceedings of the IEEE International Conference on Computer Vision (ICCV), 2019";
+			document.getElementById("method_remarks").innerHTML = "";
+			document.getElementById("code_link").innerHTML = "Code: <a href='https://github.com/nogu-atsu/small-dataset-image-generation'>link</a>";
+		}
+
+		var li_list = document.getElementById("current-view-ul").children;
+		for(i = 0; i < li_list.length; i++){
+			li_list[i].className = "";
+		}
+		li_list[idx].className = "active";
+		currentView = currentViewList[idx];
+		document.getElementById("image_slider").style.display = 'block';
+		document.getElementById("video_canvas").style.display = 'none';
+		ChangeFrame();
+	}
+
+
+	</script>
+
+
+</body>
+</html>
