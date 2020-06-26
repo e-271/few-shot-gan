@@ -28,7 +28,7 @@ This work is made available under the Nvidia Source Code License-NC. To view a c
 
 ```
 @article{robb2020fewshotgan,
-  title   = {Copyright &copy; 2019, NVIDIA Corporation. All rights reserved.},
+  title   = {Few-shot Domain Transfer for Generative Adversarial Networks.},
   author  = {Esther Robb and Jiarui Xu and Vincent Chu and Abhishek Kumar and Jia-Bin Huang},
   journal = {arXiv},
   volume  = {},
