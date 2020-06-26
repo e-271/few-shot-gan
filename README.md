@@ -1,4 +1,4 @@
-## Few-shot GAN; Official TensorFlow Code
+## Few-shot GAN Official TensorFlow Code
 
 ![Teaser image](./docs/stylegan2-teaser-1024x256.png)
 
