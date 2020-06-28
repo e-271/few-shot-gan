@@ -18,9 +18,7 @@ We demonstrate qualitative and quantitative results against competing methods ac
 
 ## Requirements
 
-Our code is build on StyleGAN2 with no additional requirements. You can follow their directions here: 
-
-[StyleGAN2 Requirements](https://github.com/NVlabs/stylegan2#requirements).
+Our code is build on StyleGAN2 with no additional requirements. You can follow their directions here: [StyleGAN2 Requirements](https://github.com/NVlabs/stylegan2#requirements).
 
 ## Preparing datasets
 
