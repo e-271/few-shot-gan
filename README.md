@@ -22,7 +22,7 @@ Our code is build on StyleGAN2 with no additional requirements. You can follow t
 
 ## Preparing datasets
 
-To prepare a few-shot dataset from a folder containing images:
+To prepare a dataset from a folder containing images:
 
 ```
 python dataset_tool.py create_from_images /path/to/target/tfds /path/to/source/folder --resolution 1024
