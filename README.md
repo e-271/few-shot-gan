@@ -1,6 +1,6 @@
 ## Few-shot GAN Official TensorFlow Code
 
-![Teaser image](./docs/few-shot-gan-teaser-1024x256.png)
+![Teaser image](./docs/3719_gen_grid_2.png)
 
 **Few-shot Domain Transfer for Generative Adversarial Networks**<br>
 Esther Robb, Jiarui Xu, Vincent Chu, Abhishek Kumar, Jia-Bin Huang<br>
