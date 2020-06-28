@@ -32,7 +32,9 @@ To prepare a few-shot dataset from a folder containing images:
 
 If you want to evaluate FID, you may want to create a separate, larger evaluation set:
 
+```
 
+```
 
 
 ## Training networks
@@ -41,8 +43,9 @@ Our networks start with pretrained checkpoint pickle from vanilla StyleGAN2 `con
 
 [StyleGAN2 Checkpoints](https://drive.google.com/corp/drive/folders/1yanUI9m4b4PWzR0eurKNq6JR1Bbfbh6L)
 
-To adapt a pretrained checkpoint to a new dataset:
+To adapt a pretrained checkpoint to a new dataset, use the following commands.
 
+PCA (our method):
 ```
 data_root=/path/to/data/root
 train_dir=relative/path/to/train
@@ -56,22 +59,63 @@ python run_training.py \
 --resume-pkl=$pretrain_pickle \
 --max-images=25 \
 --config=config-pc-all\
---lrate-base=0.002 \
+--lrate-base=0.003 \
 ```
+
+Transfer GAN:
+```
+python run_training.py \
+--data-dir=$data_root \
+--dataset-train=$train_dir \
+--dataset-eval=$eval_dir \
+--resume-pkl=$pretrain_pickle \
+--max-images=25 \
+--config=config-f\
+--lrate-base=0.0003 \
+```
+
+FreezeD:
+```
+python run_training.py \
+--data-dir=$data_root \
+--dataset-train=$train_dir \
+--dataset-eval=$eval_dir \
+--resume-pkl=$pretrain_pickle \
+--max-images=25 \
+--config=config-f\
+--lrate-base=0.0003 \
+--freeze-d=1
+```
+
+Scale & Shift GAN:
+```
+python run_training.py \
+--data-dir=$data_root \
+--dataset-train=$train_dir \
+--dataset-eval=$eval_dir \
+--resume-pkl=$pretrain_pickle \
+--max-images=25 \
+--config=config-ss\
+--lrate-base=0.003 \
+```
+
 
 ## Image generation
 
 To generate additional samples from a pretrained model:
 
-
+```
+```
 
 ## Pretrained networks
 
-We provide some pretrained network checkpoints in Drive: https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing
+We provide some pretrained network checkpoints in Drive: 
+
+https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing
 
 ## License
 
-This work is made available under the Nvidia Source Code License-NC. To view a copy of this license, visit https://nvlabs.github.io/stylegan2/license.html
+As a modification of the official StyleGAN2 code, this work inherits the Nvidia Source Code License-NC. To view a copy of this license, visit https://nvlabs.github.io/stylegan2/license.html
 
 ## Citation
 
