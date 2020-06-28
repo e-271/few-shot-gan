@@ -105,7 +105,7 @@ python run_generator.py generate-images --network=/path/to/network/pickle --seed
 
 ## Pretrained networks
 
-We provide some pretrained network checkpoints in Drive: (Few-shot GAN Checkpoints)[https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing]
+We provide some pretrained network checkpoints in Drive: [Few-shot GAN Checkpoints](https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing)
 
 ## License
 
@@ -122,7 +122,3 @@ As a modification of the official StyleGAN2 code, this work inherits the Nvidia 
   year    = {2020},
 }
 ```
-
-## Acknowledgements
-
-We thank Mark Sandler and Andrey Zhmoginov for their input and support.
