@@ -20,13 +20,54 @@ We demonstrate qualitative and quantitative results against competing methods ac
 
 ## Requirements
 
-Requirements match those of [StyleGAN2](https://github.com/NVlabs/stylegan2).
+Our code is build on StyleGAN2 with no additional requirements. You can follow their directions here: [StyleGAN2 Requirements](https://github.com/NVlabs/stylegan2#requirements).
 
 ## Preparing datasets
+
+To prepare a few-shot dataset from a folder containing images:
+
+```
+
+```
+
+If you want to evaluate FID, you may want to create a separate, larger evaluation set:
+
+
 
 
 ## Training networks
 
+Our networks start with pretrained checkpoint pickle from vanilla StyleGAN2 `config-f`, which can be downloaded from here:
+
+[StyleGAN2 Checkpoints](https://drive.google.com/corp/drive/folders/1yanUI9m4b4PWzR0eurKNq6JR1Bbfbh6L)
+
+To adapt a pretrained checkpoint to a new dataset:
+
+```
+data_root=/path/to/data/root
+train_dir=relative/path/to/train
+eval_dir=relative/path/to/eval
+pretrain_pickle=/path/to/stylegan2/pickle
+
+python run_training.py \
+--data-dir=$data_root \
+--dataset-train=$train_dir \
+--dataset-eval=$eval_dir \
+--resume-pkl=$pretrain_pickle \
+--max-images=25 \
+--config=config-pc-all\
+--lrate-base=0.002 \
+```
+
+## Image generation
+
+To generate additional samples from a pretrained model:
+
+
+
+## Pretrained networks
+
+We provide some pretrained network checkpoints in [Drive]().
 
 ## License
 
