@@ -1,6 +1,6 @@
 ## Few-shot GAN Official TensorFlow Code
 
-![Teaser image](./docs/stylegan2-teaser-1024x256.png)
+![Teaser image](./docs/few-shot-gan-teaser-1024x256.png)
 
 **Few-shot Domain Transfer for Generative Adversarial Networks**<br>
 Esther Robb, Jiarui Xu, Vincent Chu, Abhishek Kumar, Jia-Bin Huang<br>
@@ -111,7 +111,7 @@ As a modification of the official StyleGAN2 code, this work inherits the Nvidia 
 
 ## Citation
 
-If you find this useful, please cite this work:
+If you find this project useful, please cite this work:
 
 ```
 @article{robb2020fewshotgan,
