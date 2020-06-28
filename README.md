@@ -20,21 +20,19 @@ We demonstrate qualitative and quantitative results against competing methods ac
 
 ## Requirements
 
-Our code is build on StyleGAN2 with no additional requirements. You can follow their directions here: [StyleGAN2 Requirements](https://github.com/NVlabs/stylegan2#requirements).
+Our code is build on StyleGAN2 with no additional requirements. You can follow their directions here: 
+
+[StyleGAN2 Requirements](https://github.com/NVlabs/stylegan2#requirements).
 
 ## Preparing datasets
 
 To prepare a few-shot dataset from a folder containing images:
 
 ```
-
+python dataset_tool.py create_from_images /path/to/target/tfds /path/to/source/folder --resolution 1024
 ```
 
-If you want to evaluate FID, you may want to create a separate, larger evaluation set:
-
-```
-
-```
+If you want to evaluate FID, you may want to create a small dataset for few-shot training and a larger dataset for evaluation.
 
 
 ## Training networks
@@ -105,6 +103,7 @@ python run_training.py \
 To generate additional samples from a pretrained model:
 
 ```
+python run_generator.py generate-images --network=/path/to/network/pickle --seeds=0-100
 ```
 
 ## Pretrained networks
