@@ -8,9 +8,7 @@ Esther Robb, Jiarui Xu, Vincent Chu, Abhishek Kumar, Jia-Bin Huang<br>
 Paper: <br>
 Website: https://e-271.github.io/few-shot-gan<br>
 
-Abstract:
-
-We present Few-shot GAN, a novel approach to adapt a pretrained GAN model to generate new images with only a few training images from a target domain.
+Abstract: We present Few-shot GAN, a novel approach to adapt a pretrained GAN model to generate new images with only a few training images from a target domain.
 Inspired by component analysis techniques, which have shown to relax training data requirements, we repurpose PCA decomposition on the pretrained GAN's weights to evolve the pretrained GAN into a target-specific GAN.
 Instead of finetuning the entire GAN or just batch statistics as in alternative methods, our method learns to adjust the obtained principal components to reshape the weight subspace, and strikes a balance between parameter efficiency and diversity.
 To detect multi-mode overfitting in the few-shot training, we develop a novel metric to monitor latent space smoothness during the training process.
@@ -37,19 +35,19 @@ If you want to evaluate FID, you may want to create a small dataset for few-shot
 
 ## Training networks
 
-Our networks start with pretrained checkpoint pickle from vanilla StyleGAN2 `config-f`, which can be downloaded from here:
+Our networks start with pretrained checkpoint pickle from vanilla StyleGAN2 `config-f`, which can be downloaded from Drive here: [StyleGAN2 Checkpoints](https://drive.google.com/corp/drive/folders/1yanUI9m4b4PWzR0eurKNq6JR1Bbfbh6L)
 
-[StyleGAN2 Checkpoints](https://drive.google.com/corp/drive/folders/1yanUI9m4b4PWzR0eurKNq6JR1Bbfbh6L)
+After downloading the pretrain pickle and creating train/eval datasets, define data locations:
 
-To adapt a pretrained checkpoint to a new dataset, use the following commands.
-
-PCA (our method):
 ```
 data_root=/path/to/data/root
 train_dir=relative/path/to/train
 eval_dir=relative/path/to/eval
 pretrain_pickle=/path/to/stylegan2/pickle
+```
 
+Train PCA (our method):
+```
 python run_training.py \
 --data-dir=$data_root \
 --dataset-train=$train_dir \
@@ -60,7 +58,7 @@ python run_training.py \
 --lrate-base=0.003 \
 ```
 
-Transfer GAN:
+Train Transfer GAN:
 ```
 python run_training.py \
 --data-dir=$data_root \
@@ -72,7 +70,7 @@ python run_training.py \
 --lrate-base=0.0003 \
 ```
 
-FreezeD:
+Train FreezeD:
 ```
 python run_training.py \
 --data-dir=$data_root \
@@ -85,7 +83,7 @@ python run_training.py \
 --freeze-d=1
 ```
 
-Scale & Shift GAN:
+Train Scale & Shift GAN:
 ```
 python run_training.py \
 --data-dir=$data_root \
@@ -97,7 +95,6 @@ python run_training.py \
 --lrate-base=0.003 \
 ```
 
-
 ## Image generation
 
 To generate additional samples from a pretrained model:
@@ -108,9 +105,7 @@ python run_generator.py generate-images --network=/path/to/network/pickle --seed
 
 ## Pretrained networks
 
-We provide some pretrained network checkpoints in Drive: 
-
-https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing
+We provide some pretrained network checkpoints in Drive: (Few-shot GAN Checkpoints)[https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing]
 
 ## License
 
