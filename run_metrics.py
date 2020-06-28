@@ -82,7 +82,11 @@ def main():
     sc.num_gpus = kwargs.pop('num_gpus')
     sc.submit_target = dnnlib.SubmitTarget.LOCAL
     sc.local.do_not_copy_source_files = True
-    sc.run_dir_root = kwargs.pop('result_dir')
+    #sc.run_dir_root = kwargs.pop('result_dir')
+
+    sc.run_dir_root = os.path.dirname(kwargs['network_pkl']) + '/gen_%s' % kwargs['network_pkl'].split('/')[-1].split('.')[0].split('-')[-1]
+    kwargs.pop('result_dir')
+
     sc.run_desc = 'run-metrics'
     dnnlib.submit_run(sc, 'run_metrics.run', **kwargs)
 

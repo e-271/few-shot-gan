@@ -165,7 +165,7 @@ class MetricGroup:
         for metric in self.metrics:
             fmt_res = metric._results[-1].fmt % metric._results[-1].value
             row += '%-20s' % (fmt_res)
-        if kwargs['run_dir'] is not None:
+        if 'run_dir' in kwargs:
             log_file = os.path.join(kwargs['run_dir'], 'metrics.txt')
             with dnnlib.util.Logger(log_file, 'a'):
                 if not self.log_exists:

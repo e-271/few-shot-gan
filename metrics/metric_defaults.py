@@ -15,6 +15,8 @@ metric_defaults = EasyDict([(args.name, args) for args in [
     EasyDict(name='fid1k',    func_name='metrics.frechet_inception_distance.FID', num_images=1000, minibatch_per_gpu=8),
     EasyDict(name='fid5k',    func_name='metrics.frechet_inception_distance.FID', num_images=5000, minibatch_per_gpu=8),
     EasyDict(name='fid10k',    func_name='metrics.frechet_inception_distance.FID', num_images=10000, minibatch_per_gpu=8),
+    EasyDict(name='mmd.1k',    func_name='metrics.max_mean_distance.MMD', num_images=1000, minibatch_per_gpu=8),
+    EasyDict(name='mmd.10k',    func_name='metrics.max_mean_distance.MMD', num_images=10000, minibatch_per_gpu=8),
     EasyDict(name='is50k',     func_name='metrics.inception_score.IS',             num_images=50000, minibatch_per_gpu=8),
     # Don't use this for real evals, it doesn't really learn much even on real data.
     EasyDict(name='cas1k',     func_name='metrics.classification_acc.CAS',         train_steps=1000, val_steps=1000, minibatch_per_gpu=8),

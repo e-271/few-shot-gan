@@ -4,7 +4,6 @@
 # To view a copy of this license, visit
 # https://nvlabs.github.io/stylegan2/license.html
 
-"""Frechet Inception Distance (FID)."""
 
 import os
 import numpy as np
@@ -17,7 +16,7 @@ from training import misc
 
 #----------------------------------------------------------------------------
 
-class FID(metric_base.MetricBase):
+class MMD(metric_base.MetricBase):
     def __init__(self, num_images, minibatch_per_gpu, **kwargs):
         super().__init__(**kwargs)
         self.num_images = num_images
@@ -67,14 +66,13 @@ class FID(metric_base.MetricBase):
             end = min(begin + minibatch_size, self.num_images)
             activations[begin:end] = np.concatenate(tflib.run(result_expr), axis=0)[:end-begin]
         mu_fake = np.mean(activations, axis=0)
-        sigma_fake = np.cov(activations, rowvar=False)
+        #sigma_fake = np.cov(activations, rowvar=False)
 
         # Calculate FID.
-        m = np.square(mu_fake - mu_real).sum()
-        mmd = np.sqrt(np.sum((mu_fake - mu_real)**2))
-        s, _ = scipy.linalg.sqrtm(np.dot(sigma_fake, sigma_real), disp=False) # pylint: disable=no-member
-        dist = m + np.trace(sigma_fake + sigma_real - 2*s)
-        self._report_result(np.real(dist), '_fid')
-        self._report_result(mmd, '_mmd')
+        import pdb; pdb.set_trace()
+        m = np.squrt(np.sum((mu_fake - mu_real)**2)) # np.square(mu_fake - mu_real).sum()
+        #s, _ = scipy.linalg.sqrtm(np.dot(sigma_fake, sigma_real), disp=False) # pylint: disable=no-member
+        #dist = m + np.trace(sigma_fake + sigma_real - 2*s)
+        self._report_result(m) #np.real(dist))
 
 #----------------------------------------------------------------------------

@@ -29,6 +29,12 @@ def error(msg):
 
 #----------------------------------------------------------------------------
 
+def choose_shuffled_order(size): # Note: Images and labels must be added in shuffled order.
+    order = np.arange(size)
+    np.random.RandomState(123).shuffle(order)
+    return order
+
+
 class TFRecordExporter:
     def __init__(self, tfrecord_dir, expected_images, print_progress=True, progress_interval=10):
         self.tfrecord_dir       = tfrecord_dir
@@ -285,7 +291,7 @@ def compare(tfrecord_dir_a, tfrecord_dir_b, ignore_labels):
 
 #----------------------------------------------------------------------------
 
-def create_mnist(tfrecord_dir, mnist_dir):
+def create_mnist(tfrecord_dir, mnist_dir, label_start=5, label_end=9, partition=True, n_shot=10, seed=1):
     print('Loading MNIST from "%s"' % mnist_dir)
     import gzip
     with gzip.open(os.path.join(mnist_dir, 'train-images-idx3-ubyte.gz'), 'rb') as file:
@@ -298,14 +304,42 @@ def create_mnist(tfrecord_dir, mnist_dir):
     assert labels.shape == (60000,) and labels.dtype == np.uint8
     assert np.min(images) == 0 and np.max(images) == 255
     assert np.min(labels) == 0 and np.max(labels) == 9
+    mask = np.where((labels >= label_start) * (labels <= label_end))[0].astype(np.int)
+    if n_shot is not 0:
+        ct = np.zeros(label_end-label_start + 1)
+        few_mask = [] 
+        np.random.seed(seed)
+        while np.any(ct < n_shot):
+            c = np.random.choice(mask, size=1, replace=False)[0]
+            if ct[labels[c] - label_start] < n_shot:
+                ct[labels[c] - label_start] += 1
+                few_mask.append(c)
+        mask=few_mask         
+    labels = labels[mask]
+    labels = labels - np.min(labels)
+    images = images[mask]
     onehot = np.zeros((labels.size, np.max(labels) + 1), dtype=np.float32)
     onehot[np.arange(labels.size), labels] = 1.0
 
-    with TFRecordExporter(tfrecord_dir, images.shape[0]) as tfr:
-        order = tfr.choose_shuffled_order()
-        for idx in range(order.size):
-            tfr.add_image(images[order[idx]])
-        tfr.add_labels(onehot[order])
+    if partition:
+        order = choose_shuffled_order(images.shape[0])
+        split = order.size // 2
+        path, name = os.path.split(tfrecord_dir)
+        with TFRecordExporter('{}/train/{}'.format(path, name), split) as tfr:
+            for idx in range(split):
+                tfr.add_image(images[order[idx]])
+            tfr.add_labels(onehot[order[:split]])
+        with TFRecordExporter('{}/val/{}'.format(path, name), order.size - split) as tfr:
+            for idx in range(split, order.size):
+                tfr.add_image(images[order[idx]])
+            tfr.add_labels(onehot[order[split:]])
+
+    else:
+        with TFRecordExporter(tfrecord_dir, images.shape[0]) as tfr:
+            order = tfr.choose_shuffled_order()
+            for idx in range(order.size):
+                tfr.add_image(images[order[idx]])
+            tfr.add_labels(onehot[order])
 
 #----------------------------------------------------------------------------
 
@@ -324,9 +358,123 @@ def create_mnistrgb(tfrecord_dir, mnist_dir, num_images=1000000, random_seed=123
         for _idx in range(num_images):
             tfr.add_image(images[rnd.randint(images.shape[0], size=3)])
 
+
 #----------------------------------------------------------------------------
 
-def create_cifar10(tfrecord_dir, cifar10_dir):
+def create_char74k(tfrecord_dir, image_dir, shuffle, greyscale=False, resolution=None, partition=False):
+    print('Loading images from "%s"' % image_dir)
+    image_dirs = sorted(glob.glob(os.path.join(image_dir, '*')))
+    image_filenames = [sorted(glob.glob(os.path.join(d, '*'))) for d in image_dirs]
+    if len(image_filenames) == 0:
+        error('No input images found')
+    img = np.asarray(PIL.Image.open(image_filenames[0][0]))
+    if not resolution:
+        resolution = img.shape[0]
+        if img.shape[1] != resolution:
+            error('Input images must have the same width and height')
+    else:
+        print('Resizing %dx%d images to %dx%d.' % (img.shape[0], img.shape[1], resolution, resolution))
+
+    channels = img.shape[2] if img.ndim == 3 else 1
+
+    if resolution != 2 ** int(np.floor(np.log2(resolution))):
+        error('Input image resolution must be a power-of-two')
+    if channels not in [1, 3]:
+        error('Input images must be stored as RGB or grayscale')
+
+
+    def add_to_tfr(idx, order, tfr, filenames):
+        img = PIL.Image.open(filenames[order[idx]]).resize([resolution, resolution])
+        if greyscale: img = img.convert('L'); channels=1
+        img = np.asarray(img)
+        if channels == 1:
+            img = img[np.newaxis, :, :] # HW => CHW
+        else:
+            if len(img.shape) ==3 and img.shape[-1] == 4:
+                img = img[:, :, :3]
+            if len(img.shape) == 2:
+                img=np.stack([img, img, img], axis=2)
+            img = img.transpose([2, 0, 1]) # HWC => CHW
+        tfr.add_image(img)
+
+
+    if partition:
+        train_filenames, val_filenames = [], []
+        for i, d in enumerate(image_dirs):
+            split = len(image_filenames[i]) // 2
+            train_filenames.extend(image_filenames[i][:split])
+            val_filenames.extend(image_filenames[i][split:])
+        assert len(train_filenames) + len(val_filenames) == len(np.concatenate(image_filenames))
+        train_order = choose_shuffled_order(len(train_filenames))
+        val_order = choose_shuffled_order(len(val_filenames))
+        path, name = os.path.split(tfrecord_dir)
+        with TFRecordExporter('{}/train/{}'.format(path, name), len(train_filenames)) as tfr:
+            for idx in range(train_order.size):
+                add_to_tfr(idx, train_order, tfr, train_filenames)
+        with TFRecordExporter('{}/val/{}'.format(path, name), len(val_filenames)) as tfr:
+            for idx in range(val_order.size):
+                add_to_tfr(idx, val_order, tfr, val_filenames)
+
+    else:
+        image_filenames = np.concatenate(image_filenames)
+        with TFRecordExporter(tfrecord_dir, len(image_filenames)) as tfr:
+            order = tfr.choose_shuffled_order() if shuffle else np.arange(len(image_filenames))
+            for idx in range(len(image_filenames)):
+                add_to_tfr(idx, order, tfr, image_filenames)
+
+
+
+#----------------------------------------------------------------------------
+
+def create_flowers(tfrecord_dir, flowers_dir, shuffle=False, label_start=1, label_end=90, partition=False, resolution=256):
+    print('Loading Flowers from "%s"' % flowers_dir)
+    import h5py
+    import scipy.io
+    images = []
+    labels = scipy.io.loadmat(os.path.join(flowers_dir, 'imagelabels.mat'))['labels']
+    # TODO filter labels
+    print('Loading images from "%s"' % flowers_dir)
+    image_filenames = sorted(glob.glob(os.path.join(flowers_dir, 'jpg/*')))
+    mask = np.where((labels >= label_start) * (labels <= label_end))[1].astype(np.int)
+    labels = labels[:, mask]
+    image_filenames = np.array(image_filenames)[mask].tolist()
+    if len(image_filenames) == 0:
+        error('No input images found')
+    img = np.asarray(PIL.Image.open(image_filenames[0]))
+    def add_to_tfr(idx, order, tfr):
+        img = PIL.Image.open(image_filenames[order[idx]]).resize([resolution, resolution])
+        img = np.asarray(img)
+        img = img.transpose([2, 0, 1]) # HWC => CHW
+        tfr.add_image(img)  
+    onehot = np.zeros((labels.size, np.max(labels) + 1), dtype=np.float32)
+
+    nimg = len(image_filenames)
+    if not partition:
+        tfr = TFRecordExporter(tfrecord_dir, nimg)
+    else:
+        path, name = os.path.split(tfrecord_dir)
+        tfr_train = TFRecordExporter('{}/train/{}'.format(path, name), nimg - nimg // 2)
+        tfr_val = TFRecordExporter('{}/val/{}'.format(path, name), nimg // 2)
+
+    order = choose_shuffled_order(nimg) if shuffle else np.arange(nimg)
+    for idx in range(len(image_filenames)):
+        print(image_filenames[idx])
+        if not partition:
+            add_to_tfr(idx, order, tfr) #tfr.add_image(img)
+        else:
+            if idx % 2 == 0: add_to_tfr(idx, order, tfr_train) #tfr_train.add_image(img)
+            else: add_to_tfr(idx, order, tfr_val) #tfr_val.add_image(img)
+
+    if not partition:
+        tfr.add_labels(onehot[order])
+    else:
+        tfr_train.add_labels(onehot[order[0::2]])
+        tfr_val.add_labels(onehot[order[1::2]])
+
+
+#----------------------------------------------------------------------------
+
+def create_cifar10(tfrecord_dir, cifar10_dir, partition=False):
     print('Loading CIFAR-10 from "%s"' % cifar10_dir)
     import pickle
     images = []
@@ -339,21 +487,37 @@ def create_cifar10(tfrecord_dir, cifar10_dir):
     images = np.concatenate(images)
     labels = np.concatenate(labels)
     assert images.shape == (50000, 3, 32, 32) and images.dtype == np.uint8
-    assert labels.shape == (50000,) and labels.dtype == np.int32
+    assert labels.shape == (50000,) and labels.dtype == np.int64
     assert np.min(images) == 0 and np.max(images) == 255
     assert np.min(labels) == 0 and np.max(labels) == 9
     onehot = np.zeros((labels.size, np.max(labels) + 1), dtype=np.float32)
     onehot[np.arange(labels.size), labels] = 1.0
 
-    with TFRecordExporter(tfrecord_dir, images.shape[0]) as tfr:
-        order = tfr.choose_shuffled_order()
-        for idx in range(order.size):
-            tfr.add_image(images[order[idx]])
+    if not partition:
+        tfr = TFRecordExporter(tfrecord_dir, images.shape[0])
+    else:
+        path, name = os.path.split(tfrecord_dir)
+        tfr_train = TFRecordExporter('{}/train/{}'.format(path, name), images.shape[0] - images.shape[0] // 2)
+        tfr_val = TFRecordExporter('{}/val/{}'.format(path, name), images.shape[0] // 2)
+
+    order = choose_shuffled_order(images.shape[0])
+    for idx in range(order.size):
+        img = images[order[idx]]
+        if not partition:
+            tfr.add_image(img)
+        else:
+            if idx % 2 == 0: tfr_train.add_image(img)
+            else: tfr_val.add_image(img)
+    if not partition:
         tfr.add_labels(onehot[order])
+    else:
+        tfr_train.add_labels(onehot[order[0::2]])
+        tfr_val.add_labels(onehot[order[1::2]])
+
 
 #----------------------------------------------------------------------------
 
-def create_cifar100(tfrecord_dir, cifar100_dir):
+def create_cifar100(tfrecord_dir, cifar100_dir, partition=False, filt_labels=None, n_shot=None):
     print('Loading CIFAR-100 from "%s"' % cifar100_dir)
     import pickle
     with open(os.path.join(cifar100_dir, 'train'), 'rb') as file:
@@ -361,17 +525,46 @@ def create_cifar100(tfrecord_dir, cifar100_dir):
     images = data['data'].reshape(-1, 3, 32, 32)
     labels = np.array(data['fine_labels'])
     assert images.shape == (50000, 3, 32, 32) and images.dtype == np.uint8
-    assert labels.shape == (50000,) and labels.dtype == np.int32
+    assert labels.shape == (50000,) and labels.dtype == np.int64
     assert np.min(images) == 0 and np.max(images) == 255
     assert np.min(labels) == 0 and np.max(labels) == 99
+
+    filt_labels = range(10)
+    #n_shot = 25
+    if filt_labels:
+        mask = np.array([np.where(labels == l)[0] for l in filt_labels])
+        if n_shot:
+            mask = mask[:, 0::2] # reduce to train set only
+            mask = mask[:,:n_shot]
+        mask = np.concatenate(mask)
+        import pdb; pdb.set_trace()
+        labels = labels[mask]
+        images = images[mask]
+
     onehot = np.zeros((labels.size, np.max(labels) + 1), dtype=np.float32)
     onehot[np.arange(labels.size), labels] = 1.0
 
-    with TFRecordExporter(tfrecord_dir, images.shape[0]) as tfr:
-        order = tfr.choose_shuffled_order()
-        for idx in range(order.size):
-            tfr.add_image(images[order[idx]])
+    if not partition:
+        tfr = TFRecordExporter(tfrecord_dir, images.shape[0])
+    else:
+        path, name = os.path.split(tfrecord_dir)
+        tfr_train = TFRecordExporter('{}/train/{}'.format(path, name), images.shape[0] - images.shape[0] // 2)
+        tfr_val = TFRecordExporter('{}/val/{}'.format(path, name), images.shape[0] // 2)
+
+    order = choose_shuffled_order(images.shape[0])
+    for idx in range(order.size):
+        img = images[order[idx]]
+        if not partition:
+            tfr.add_image(img)
+        else:
+            if idx % 2 == 0: tfr_train.add_image(img)
+            else: tfr_val.add_image(img)
+    if not partition:
         tfr.add_labels(onehot[order])
+    else:
+        tfr_train.add_labels(onehot[order[0::2]])
+        tfr_val.add_labels(onehot[order[1::2]])
+
 
 #----------------------------------------------------------------------------
 
@@ -402,7 +595,7 @@ def create_svhn(tfrecord_dir, svhn_dir):
 
 #----------------------------------------------------------------------------
 
-def create_lsun(tfrecord_dir, lmdb_dir, resolution=256, max_images=None):
+def create_lsun(tfrecord_dir, lmdb_dir, resolution=256, max_images=None, partition=False):
     print('Loading LSUN dataset from "%s"' % lmdb_dir)
     import lmdb # pip install lmdb # pylint: disable=import-error
     import cv2 # pip install opencv-python
@@ -411,38 +604,37 @@ def create_lsun(tfrecord_dir, lmdb_dir, resolution=256, max_images=None):
         total_images = txn.stat()['entries'] # pylint: disable=no-value-for-parameter
         if max_images is None:
             max_images = total_images
-        if not partition: 
+        if not partition:
             tfr = TFRecordExporter(tfrecord_dir, max_images)
-        else: 
-            tfr_train = TFRecordExporter(tfrecord_dir, max_images // 2), 
-            tfr_val = TFRecordExporter(tfrecord_dir, max_images - max_images // 2)
-
-        with TFRecordExporter(tfrecord_dir, max_images) as tfr:
-            for _idx, (_key, value) in enumerate(txn.cursor()):
+        else:
+            path, name = os.path.split(tfrecord_dir)
+            tfr_train = TFRecordExporter('{}/train/{}'.format(path, name), max_images // 2)
+            tfr_val = TFRecordExporter('{}/val/{}'.format(path, name), max_images // 2)
+        for _idx, (_key, value) in enumerate(txn.cursor()):
+            try:
                 try:
-                    try:
-                        img = cv2.imdecode(np.fromstring(value, dtype=np.uint8), 1)
-                        if img is None:
-                            raise IOError('cv2.imdecode failed')
-                        img = img[:, :, ::-1] # BGR => RGB
-                    except IOError:
-                        img = np.asarray(PIL.Image.open(io.BytesIO(value)))
-                    crop = np.min(img.shape[:2])
-                    img = img[(img.shape[0] - crop) // 2 : (img.shape[0] + crop) // 2, (img.shape[1] - crop) // 2 : (img.shape[1] + crop) // 2]
-                    img = PIL.Image.fromarray(img, 'RGB')
-                    img = img.resize((resolution, resolution), PIL.Image.ANTIALIAS)
-                    img = np.asarray(img)
-                    img = img.transpose([2, 0, 1]) # HWC => CHW
-                    if not paritition:
-                        tfr.add_image(img)
-                    else:
-                        if _idx % 2: tfr_train.add_image(img)
-                        else: tfr_val.add_image(img)
-                except:
-                    print(sys.exc_info()[1])
-                if tfr.cur_images == max_images:
-                    break
-                print(_idx)
+                    img = cv2.imdecode(np.fromstring(value, dtype=np.uint8), 1)
+                    if img is None:
+                        raise IOError('cv2.imdecode failed')
+                    img = img[:, :, ::-1] # BGR => RGB
+                except IOError:
+                    img = np.asarray(PIL.Image.open(io.BytesIO(value)))
+                crop = np.min(img.shape[:2])
+                img = img[(img.shape[0] - crop) // 2 : (img.shape[0] + crop) // 2, (img.shape[1] - crop) // 2 : (img.shape[1] + crop) // 2]
+                img = PIL.Image.fromarray(img, 'RGB')
+                img = img.resize((resolution, resolution), PIL.Image.ANTIALIAS)
+                img = np.asarray(img)
+                img = img.transpose([2, 0, 1]) # HWC => CHW
+                if not partition:
+                    tfr.add_image(img)
+                else:
+                    if _idx % 2: tfr_train.add_image(img);
+                    else: tfr_val.add_image(img);
+            except:
+                print(sys.exc_info()[1])
+            if _idx == max_images - 1:
+                break
+
 
 #----------------------------------------------------------------------------
 
@@ -493,7 +685,7 @@ def create_lsun_wide(tfrecord_dir, lmdb_dir, width=512, height=384, max_images=N
 
 def create_celeba(tfrecord_dir, celeba_dir, cx=89, cy=121):
     print('Loading CelebA from "%s"' % celeba_dir)
-    glob_pattern = os.path.join(celeba_dir, 'all', '*.jpg')
+    glob_pattern = os.path.join(celeba_dir, 'img_align_celeba_png', '*.png')
     image_filenames = sorted(glob.glob(glob_pattern))
     expected_images = 202599
     if len(image_filenames) != expected_images:
@@ -503,19 +695,18 @@ def create_celeba(tfrecord_dir, celeba_dir, cx=89, cy=121):
         order = tfr.choose_shuffled_order()
         for idx in range(order.size):
             img = np.asarray(PIL.Image.open(image_filenames[order[idx]]))
-            assert img.shape == (256, 256, 3) #(218, 178, 3)
+            assert img.shape == (218, 178, 3)
             img = img[cy - 64 : cy + 64, cx - 64 : cx + 64]
             img = img.transpose(2, 0, 1) # HWC => CHW
             tfr.add_image(img)
 
 #----------------------------------------------------------------------------
 
-def create_from_images(tfrecord_dir, image_dir, shuffle, resolution=None):
+def create_from_images(tfrecord_dir, image_dir, shuffle, greyscale=False, resolution=None, partition=False):
     print('Loading images from "%s"' % image_dir)
     image_filenames = sorted(glob.glob(os.path.join(image_dir, '*')))
     if len(image_filenames) == 0:
         error('No input images found')
-
     img = np.asarray(PIL.Image.open(image_filenames[0]))
     if not resolution:
         resolution = img.shape[0]
@@ -530,18 +721,38 @@ def create_from_images(tfrecord_dir, image_dir, shuffle, resolution=None):
     if channels not in [1, 3]:
         error('Input images must be stored as RGB or grayscale')
 
-    with TFRecordExporter(tfrecord_dir, len(image_filenames)) as tfr:
-        order = tfr.choose_shuffled_order() if shuffle else np.arange(len(image_filenames))
-        for idx in range(order.size):
-            img = np.asarray(PIL.Image.open(image_filenames[order[idx]]).resize([resolution, resolution]))
 
-            if channels == 1:
-                img = img[np.newaxis, :, :] # HW => CHW
-            else:
-                if len(img.shape) == 2:
-                    img=np.stack([img, img, img], axis=2)
-                img = img.transpose([2, 0, 1]) # HWC => CHW
-            tfr.add_image(img)
+    def add_to_tfr(idx, order, tfr, channels):
+        img = PIL.Image.open(image_filenames[order[idx]]).resize([resolution, resolution])
+        if greyscale: img = img.convert('L'); channels=1
+        img = np.asarray(img)
+        if channels == 1:
+            img = img[np.newaxis, :, :] # HW => CHW
+        else:
+            if len(img.shape) ==3 and img.shape[-1] == 4:
+                img = img[:, :, :3]
+            if len(img.shape) == 2:
+                img=np.stack([img, img, img], axis=2)
+            img = img.transpose([2, 0, 1]) # HWC => CHW
+        tfr.add_image(img)
+
+
+    if partition:
+        order = choose_shuffled_order(len(image_filenames))
+        split = order.size // 2
+        path, name = os.path.split(tfrecord_dir)
+        with TFRecordExporter('{}/train/{}'.format(path, name), split) as tfr:
+            for idx in range(split):
+                add_to_tfr(idx, order, tfr, channels)
+        with TFRecordExporter('{}/val/{}'.format(path, name), order.size - split) as tfr:
+            for idx in range(split, order.size):
+                add_to_tfr(idx, order, tfr, channels)
+
+    else:
+        with TFRecordExporter(tfrecord_dir, len(image_filenames)) as tfr:
+            order = tfr.choose_shuffled_order() if shuffle else np.arange(len(image_filenames))
+            for idx in range(len(image_filenames)):
+                add_to_tfr(idx, order, tfr, channels)
 
 #----------------------------------------------------------------------------
 
@@ -592,6 +803,9 @@ def execute_cmdline(argv):
                                             'create_mnist datasets/mnist ~/downloads/mnist')
     p.add_argument(     'tfrecord_dir',     help='New dataset directory to be created')
     p.add_argument(     'mnist_dir',        help='Directory containing MNIST')
+    p.add_argument(     '--partition',      help='Partion into 50/50 train/val (default: 0)', type=int, default=0)
+    p.add_argument(     '--n_shot',      help='Partion into 50/50 train/val (default: 0)', type=int, default=0)
+    p.add_argument(     '--seed',      help='Partion into 50/50 train/val (default: 0)', type=int, default=0)
 
     p = add_command(    'create_mnistrgb',  'Create dataset for MNIST-RGB.',
                                             'create_mnistrgb datasets/mnistrgb ~/downloads/mnist')
@@ -600,15 +814,34 @@ def execute_cmdline(argv):
     p.add_argument(     '--num_images',     help='Number of composite images to create (default: 1000000)', type=int, default=1000000)
     p.add_argument(     '--random_seed',    help='Random seed (default: 123)', type=int, default=123)
 
+    p = add_command(    'create_char74k', 'Create dataset from a directory full of images.',
+                                            'create_from_images datasets/mydataset myimagedir')
+    p.add_argument(     'tfrecord_dir',     help='New dataset directory to be created')
+    p.add_argument(     'image_dir',        help='Directory containing the images')
+    p.add_argument(     '--resolution',     help='Output resolution (default: 32)', type=int, default=32)
+    p.add_argument(     '--greyscale',      help='Convert to greyscale (default: 0)', type=int, default=0)
+    p.add_argument(     '--shuffle',        help='Randomize image order (default: 1)', type=int, default=1)
+    p.add_argument(     '--partition',      help='Partion into 50/50 train/val (default: 0)', type=int, default=0)
+
+    p = add_command(    'create_flowers',   'Create dataset for flowers.')
+    p.add_argument(     'tfrecord_dir',     help='New dataset directory to be created')
+    p.add_argument(     'flowers_dir',      help='Directory containing flowers')
+    p.add_argument(     '--label_start',    help='Label start', type=int, default=0)
+    p.add_argument(     '--label_end',      help='Label end', type=int, default=107)
+    p.add_argument(     '--resolution',     help='Output resolution (default: 256)', type=int, default=256)
+    p.add_argument(     '--partition',      help='Partion into 50/50 train/val (default: 0)', type=int, default=0)
+
     p = add_command(    'create_cifar10',   'Create dataset for CIFAR-10.',
                                             'create_cifar10 datasets/cifar10 ~/downloads/cifar10')
     p.add_argument(     'tfrecord_dir',     help='New dataset directory to be created')
     p.add_argument(     'cifar10_dir',      help='Directory containing CIFAR-10')
+    p.add_argument(     '--partition',      help='Partion into 50/50 train/val (default: 0)', type=int, default=0)
 
     p = add_command(    'create_cifar100',  'Create dataset for CIFAR-100.',
                                             'create_cifar100 datasets/cifar100 ~/downloads/cifar100')
     p.add_argument(     'tfrecord_dir',     help='New dataset directory to be created')
     p.add_argument(     'cifar100_dir',     help='Directory containing CIFAR-100')
+    p.add_argument(     '--partition',      help='Partion into 50/50 train/val (default: 0)', type=int, default=0)
 
     p = add_command(    'create_svhn',      'Create dataset for SVHN.',
                                             'create_svhn datasets/svhn ~/downloads/svhn')
@@ -621,6 +854,7 @@ def execute_cmdline(argv):
     p.add_argument(     'lmdb_dir',         help='Directory containing LMDB database')
     p.add_argument(     '--resolution',     help='Output resolution (default: 256)', type=int, default=256)
     p.add_argument(     '--max_images',     help='Maximum number of images (default: none)', type=int, default=None)
+    p.add_argument(     '--partition',      help='Partion into 50/50 train/val (default: 0)', type=int, default=0)
 
     p = add_command(    'create_lsun_wide', 'Create LSUN dataset with non-square aspect ratio.',
                                             'create_lsun_wide datasets/lsun-car-512x384 ~/downloads/lsun/car_lmdb --width 512 --height 384')
@@ -643,6 +877,8 @@ def execute_cmdline(argv):
     p.add_argument(     'image_dir',        help='Directory containing the images')
     p.add_argument(     '--resolution',     help='Output resolution (default: 256)', type=int, default=256)
     p.add_argument(     '--shuffle',        help='Randomize image order (default: 1)', type=int, default=1)
+    p.add_argument(     '--partition',      help='Partion into 50/50 train/val (default: 0)', type=int, default=0)
+    p.add_argument(     '--greyscale',      help='Convert to greyscale (default: 0)', type=int, default=0)
 
     p = add_command(    'create_from_hdf5', 'Create dataset from legacy HDF5 archive.',
                                             'create_from_hdf5 datasets/celebahq ~/downloads/celeba-hq-1024x1024.h5')
