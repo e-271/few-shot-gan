@@ -111,12 +111,13 @@ As a modification of the official StyleGAN2 code, this work inherits the Nvidia 
 
 ## Citation
 
+If you find this useful, please cite this work:
+
 ```
 @article{robb2020fewshotgan,
   title   = {Few-shot Domain Transfer for Generative Adversarial Networks.},
   author  = {Esther Robb and Jiarui Xu and Vincent Chu and Abhishek Kumar and Jia-Bin Huang},
   journal = {arXiv},
-  volume  = {},
   year    = {2020},
 }
 ```
