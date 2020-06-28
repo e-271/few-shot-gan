@@ -97,11 +97,11 @@
 	</br>
 	<div class="row">
 		<div class="col-md-offset-2 col-md-8">We present Few-shot GAN, a novel approach to adapt a pretrained GAN model to generate new images with only a few training images from a target domain.
-Inspired by component analysis techniques that have shown to relax training data requirements, we repurpose SVD decomposition on the pretrained GAN's weights to gradually evolve the pretrained GAN into a target-specific GAN.
-Instead of finetuning the entire GAN or just batch statistics as in alternative methods, our method learns to adjust the obtained singular values to reshape the weight subspace, and strikes a balance between parameter efficiency and diversity.
+Inspired by component analysis techniques, which have shown to relax training data requirements, we repurpose PCA decomposition on the pretrained GAN's weights to evolve the pretrained GAN into a target-specific GAN.
+Instead of finetuning the entire GAN or just batch statistics as in alternative methods, our method learns to adjust the obtained principal components to reshape the weight subspace, and strikes a balance between parameter efficiency and diversity.
 To detect multi-mode overfitting in the few-shot training, we develop a novel metric to monitor latent space smoothness during the training process.
-Unlike most GANs that often require large-scale training datasets (\ie tens of thousands of images), the proposed method achieves high-quality, diverse image synthesis in a data-efficient setting (\eg as few as 25 images).
-We demonstrate the effectiveness of our approach on both in-domain and cross-domain transfer settings, including face image personalization and image stylization (\eg church$\rightarrow$Van Gogh painting and faces$\rightarrow$portrait painting/anime).
+Unlike most GANs that often require large-scale training datasets (usually tens or hundreds of thousands of images), the proposed method achieves high-quality, diverse image synthesis in a data-efficient setting (as few as 25 images).
+We demonstrate the effectiveness of our approach on both in-domain and cross-domain transfer settings, including face image personalization and image stylization (e.g. churches &rarr; Van Gogh landscapes and faces &rarr; painting/anime portrait).
 We demonstrate qualitative and quantitative results against competing methods across several datasets.
 </div>
 	</div>
