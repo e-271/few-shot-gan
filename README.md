@@ -67,7 +67,7 @@ To generate additional samples from a pretrained model:
 
 ## Pretrained networks
 
-We provide some pretrained network checkpoints in [Drive]().
+We provide some pretrained network checkpoints in Drive: https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing
 
 ## License
 
