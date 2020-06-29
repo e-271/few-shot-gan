@@ -56,7 +56,7 @@ python run_training.py \
 --dataset-eval=$eval_dir \
 --resume-pkl=$pretrain_pickle \
 --max-images=25 \
---config=config-pc-all\
+--config=config-pc-all \
 --lrate-base=0.003 \
 ```
 
@@ -68,7 +68,7 @@ python run_training.py \
 --dataset-eval=$eval_dir \
 --resume-pkl=$pretrain_pickle \
 --max-images=25 \
---config=config-f\
+--config=config-f \
 --lrate-base=0.0003 \
 ```
 
@@ -80,7 +80,7 @@ python run_training.py \
 --dataset-eval=$eval_dir \
 --resume-pkl=$pretrain_pickle \
 --max-images=25 \
---config=config-f\
+--config=config-f \
 --lrate-base=0.0003 \
 --freeze-d=1
 ```
@@ -93,7 +93,7 @@ python run_training.py \
 --dataset-eval=$eval_dir \
 --resume-pkl=$pretrain_pickle \
 --max-images=25 \
---config=config-ss\
+--config=config-ss \
 --lrate-base=0.003 \
 ```
 
