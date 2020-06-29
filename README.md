@@ -25,7 +25,11 @@ Our code is build on StyleGAN2 with no additional requirements. You can follow t
 To prepare a dataset from a folder containing images:
 
 ```
-python dataset_tool.py create_from_images /path/to/target/tfds /path/to/source/folder --resolution 1024
+python dataset_tool.py \
+create_from_images \
+/path/to/target/tfds \
+/path/to/source/folder \
+--resolution 1024
 ```
 
 If you want to evaluate FID, you may want to create a small dataset for few-shot training and a larger dataset for evaluation.
