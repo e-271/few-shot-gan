@@ -1,134 +1,264 @@
-<html>
+<!DOCTYPE html>
+<!-- modified from url=(0049)http://cs.stanford.edu/people/karpathy/deepvideo/ -->
+<html class="gr__ee_nthu_edu" lang="en">
+
 <head>
-<title>Few-shot Domain Transfer for Generative Adversarial Networks</title>
-<!-- Bootstrap -->
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
-<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
-<style type="text/css">
-	l, body, #wrapper
-	{
-		background-color: #ffffff;
-		color: #000000;
-		font-family: Arial, Helvetica, sans-serif;
-		text-align: center;
-		margin: 0;
-		padding: 0;
-	}
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-164291330-1"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+  
+    gtag('config', 'UA-164291330-1');
+  </script>
+  <meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+  <meta content="IE=edge" http-equiv="X-UA-Compatible">
+  <meta content="width=device-width, initial-scale=1" name="viewport">
+  <meta content="houninghu" name="author">
+  <title>Few-shot Domain Transfer for Generative Adversarial Networks</title>
 
-	<!-- body { -->
-		<!-- background-image: url("bg.png"); -->
-	<!-- } -->
-
-	img
-	{
-		border: 0;
-	}
-
-	td
-	{
-		text-align: center;
-		<!-- font-variant: small-caps; -->
-		padding: 5px;
-	}
-
-	.section
-	{
-		font-size: 40px;
-		font-weight: bold;
-		text-align: center;
-		margin-top: 10px;
-	}
-
-	.subsection
-	{
-		font-size: 28px;
-		font-weight: bold;
-		text-align: center;
-		margin-top: 20px;
-	}
-
-	.subsubsection
-	{
-		font-size: 20px;
-		font-weight: bold;
-		text-align: center;
-		margin-top: 20px;
-	}
-
-	.navselected
-	{
-		color: #ff0000;
-		text-decoration: underline;
-		cursor: pointer;
-	}
-
-	.navunselected
-	{
-		color: #4488ff;
-		text-decoration: underline;
-		cursor: pointer;
-	}
-
-	a:link {color: #4488ff; text-decoration: underline; }
-	a:active {color: #4488ff; text-decoration: underline; }
-	a:visited {color: #4488ff; text-decoration: underline; }
-	a:hover {color: #ff0000; text-decoration: none; }
-</style>
+  <!-- CSS includes -->
+  <link href="./asset/bootstrap.min.css" rel="stylesheet">
+  <link href="./asset/css" rel="stylesheet" type="text/css">
+  <link href="./asset/mystyle.css" rel="stylesheet">
+  <link href="./Ckin-Video-Player/dist/css/ckin.css" rel="stylesheet"/>
+  <link href="./Ckin-Video-Player/demoDist/demo.css" rel="stylesheet"/>
+  <link href="./asset/slideshow.css" rel="stylesheet"/>
 </head>
-<body>
 
-<center>
+<body data-gr-c-s-loaded="true">
 
-<br>
-<div class="container">
-	<div class="row">
-		<div class="col-md-offset-2 col-md-8 section">Few-shot Domain Transfer for Generative Adversarial Networks</div>
-	</div>
-	</br>
-	<div class="row">
-		<center>
-			<h4>
-				<a href="https://arxiv.orgf">Paper</a> | 
-				<a href="https://github.com">Code</a> 
-			</h4>
-		</center>
-	</div>
-	</br>
-	<div class="row">
-		<div class="col-md-offset-2 col-md-8">We present Few-shot GAN, a novel approach to adapt a pretrained GAN model to generate new images with only a few training images from a target domain.
-Inspired by component analysis techniques, which have shown to relax training data requirements, we repurpose PCA decomposition on the pretrained GAN's weights to evolve the pretrained GAN into a target-specific GAN.
-Instead of finetuning the entire GAN or just batch statistics as in alternative methods, our method learns to adjust the obtained principal components to reshape the weight subspace, and strikes a balance between parameter efficiency and diversity.
-To detect multi-mode overfitting in the few-shot training, we develop a novel metric to monitor latent space smoothness during the training process.
-Unlike most GANs that often require large-scale training datasets (usually tens or hundreds of thousands of images), the proposed method achieves high-quality, diverse image synthesis in a data-efficient setting (as few as 25 images).
-We demonstrate the effectiveness of our approach on both in-domain and cross-domain transfer settings, including face image personalization and image stylization (e.g. churches &rarr; Van Gogh landscapes and faces &rarr; painting/anime portrait).
-We demonstrate qualitative and quantitative results against competing methods across several datasets.
+<!-- <div class="topnav" id="myTopnav">
+  <a href="#header">Home</a>
+  <a href="#example">Examples</a>
+  <a href="#abstract">Abstract</a>
+  <a href="#video">Video</a>
+  <a href="#links">Links</a>
+  <a href="#paper">BibTex</a>
+  <a href="#acknowledgment">Acknowledgments</a>
+  <a class="icon" href="javascript:void(0);" onclick="toggleTopNav()">&#9776;</a>
+</div> -->
+
+
+<div class="container-fluid" id="header">
+  <div class="row">
+    <h1>Few-shot Domain Transfer for Generative Adversarial Networks</h1>
+    <div class="authors">
+        <a href="https://www.linkedin.com/in/esther-robb-871797b7/" target="_blank">Esther Robb</a><sup>1</sup>&nbsp;&nbsp;&nbsp;&nbsp;
+        <a href="" target="_blank">Jiarui Xu</a><sup>1</sup>&nbsp;&nbsp;&nbsp;&nbsp;
+        <a href="https://l2ior.github.io/" target="_blank">Vincent Chu</a><sup>2</sup>&nbsp;&nbsp;&nbsp;&nbsp;
+        <a href="http://users.umiacs.umd.edu/~abhishek/" target="_blank">Abhishek Kumar</a><sup>3</sup>&nbsp;&nbsp;&nbsp;&nbsp;
+        <a href="https://filebox.ece.vt.edu/~jbhuang/" target="_blank">Jia-Bin Huang</a><sup>1</sup>
+      <br><br>
+
+      <p style="text-align:center;">
+        <sup>1</sup>Virginia Tech
+        &emsp;
+		<sup>2</sup>Google Cerebra
+        &emsp;
+		<sup>3</sup>Google Brain
+      </p>
+    </div>
+  </div>
 </div>
-	</div>
-	</div>
-	
 
-<br>
+<div class="container-fluid" id="teaser">
+  <div class="row">
+    <p style="text-align:center;">
+      <img height="400" src="75_diag.jpg">
+    </p>
+  </div>
+</div>
 
-<div class="subsection">Visual Comparisons</div>
 
-<table style="margin-top: 20px;">
-<tr>
-	<td>
-		<a href="pages/sample.html">
-		<div class="navunselected" onmouseover="this.className='navselected';" onmouseout="this.className='navunselected';">
-			<img src="75_diag.jpg" height="256" width="256">
-			<br>
-			<h4>Random Samples</h4>
-		</div>
-		</a>
-	</td>
-	<!--<td><a href="pages/denoising.html"><div class="navunselected" onmouseover="this.className='navselected';" onmouseout="this.className='navunselected';"><img src="teasers/denoising-comp.png" height="256" width="256"><br>Denoising</div></a></td>
-	<td><a href="pages/inpainting.html"><div class="navunselected" onmouseover="this.className='navselected';" onmouseout="this.className='navunselected';"><img src="teasers/inpainting-comp.png" height="256" width="256"><br>Inpainting</div></a></td>
-	<td><a href="pages/dehazing.html"><div class="navunselected" onmouseover="this.className='navselected';" onmouseout="this.className='navunselected';"><img src="teasers/dehazing-comp.png" height="256" width="256"><br>Dehazing</div></a></td>
-	<td><a href="pages/translation.html"><div class="navunselected" onmouseover="this.className='navselected';" onmouseout="this.className='navunselected';"><img src="teasers/translation-comp.png" height="256" width="256"><br>Translation</div></a></td>-->
-</tr>
-</table>
 
+<div class="container" id="abstract">
+  <h2>Abstract</h2>
+  We present Few-shot GAN, a novel approach to adapt a pretrained GAN model to generate new images with only a few training images from a target domain. Inspired by component analysis techniques, which have shown to relax training data requirements, we repurpose PCA decomposition on the pretrained GAN's weights to evolve the pretrained GAN into a target-specific GAN. Instead of finetuning the entire GAN or just batch statistics as in alternative methods, our method learns to adjust the obtained principal components to reshape the weight subspace, and strikes a balance between parameter efficiency and diversity. To detect multi-mode overfitting in the few-shot training, we develop a novel metric to monitor latent space smoothness during the training process. Unlike most GANs that often require large-scale training datasets (usually tens or hundreds of thousands of images), the proposed method achieves high-quality, diverse image synthesis in a data-efficient setting (as few as 25 images). We demonstrate the effectiveness of our approach on both in-domain and cross-domain transfer settings, including face image personalization and image stylization (e.g. churches → Van Gogh landscapes and faces → painting/anime portrait). We demonstrate qualitative and quantitative results against competing methods across several datasets.
+</div>
+
+
+
+<div class="container" id="links">
+  <h2>Links</h2>
+  <div class="row"></div>
+    <div class="col-sm-2">
+      <a href="pages/sample.html" target="_blank">
+        <p style="text-align:center;">
+          <img height="80" src="./NeurIPS2020/supp_website.png"><br>
+          Supplementary Website</p>
+      </a>
+    </div>
+    <div class="col-sm-2">
+      <a href="https://filebox.ece.vt.edu/~jbhuang/project/3DPhoto/supp_results.zip" target="_blank">
+        <p style="text-align:center;">
+          <img height="80" src="./NeurIPS2020/zip.png"><br>
+          Supplementary Result</p>
+      </a>
+    </div>
+    <div class="col-sm-2">
+      <a href="https://filebox.ece.vt.edu/~jbhuang/project/3DPhoto/3DPhoto_supp.pdf" target="_blank">
+        <p style="text-align:center;">
+          <img height="80" src="./NeurIPS2020/pdf.png"><br>
+          Supplementary Document</p>
+      </a>
+    </div>
+    <div class="col-sm-2">
+      <a href="https://github.com/e-271/few-shot-gan" target="_blank">
+        <p style="text-align:center;">
+          <img height="80" src="./NeurIPS2020/github.png"><br>
+          Code</p>
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="container" id="paper">
+  <h2>Paper</h2>
+  <div>
+    <a href="https://arxiv.orgf" target="_blank">
+      <p style="text-align:center;">
+        <img height="100" src="./NeurIPS2020/pdf.png"><br>
+        Few-shot Domain Transfer for Generative Adversarial Networks</p>
+    </a>  
+    <!-- <a href="https://drive.google.com/file/d/17ki_YAL1k5CaHHP3pIBFWvw-ztF4CCPP/view?usp=sharing" target="_blank">3D Photography using Context-aware Layered Depth Inpainting (PDF)</a> -->
+  </div>
+  <!-- <div>
+    <a href="https://ShihMengLi.github.io/" target="_blank">Meng-Li Shih</a>,
+    <a href="https://lemonatsu.github.io/" target="_blank">Shih-Yang Su</a>,
+    <a href="https://johanneskopf.de/" target="_blank">Johannes Kopf</a>,
+    <a href="https://filebox.ece.vt.edu/~jbhuang/" target="_blank">Jia-Bin Huang</a>
+  </div> -->
+
+
+  <!--<a href="https://drive.google.com/file/d/1qzYH4l0zJZXXz7eqgniaXrKS4F4FhYMC/view" target="_blank">
+    <div class="thumbs">
+      <img src="./NeurIPS2020/thumbs-0.png">
+      <img src="./NeurIPS2020/thumbs-1.png">
+      <img src="./NeurIPS2020/thumbs-2.png">
+      <img src="./NeurIPS2020/thumbs-3.png">
+      <img src="./NeurIPS2020/thumbs-4.png">
+      <img src="./NeurIPS2020/thumbs-5.png">
+      <img src="./NeurIPS2020/thumbs-6.png">
+      <img src="./NeurIPS2020/thumbs-7.png">
+      <img src="./NeurIPS2020/thumbs-8.png">
+      <img src="./NeurIPS2020/thumbs-10.png">
+      <img src="./NeurIPS2020/thumbs-11.png">
+      <img src="./NeurIPS2020/thumbs-12.png">
+      <img src="./NeurIPS2020/thumbs-13.png">
+      <img src="./NeurIPS2020/thumbs-15.png">
+    </div>
+  </a>-->
+  <h4><b>Citation</b></h4>
+  <div>
+	If you find this project useful, please cite this work:
+
+</div>
+  <h4><b>BibTex</b></h4>
+  <div>
+  <pre class="citation">@article{robb2020fewshotgan,
+	title   = {Few-shot Domain Transfer for Generative Adversarial Networks.},
+	author  = {Esther Robb and Jiarui Xu and Vincent Chu and Abhishek Kumar and Jia-Bin Huang},
+	journal = {arXiv},
+	year    = {2020},
+  }
+}</pre>
+  </div>
+
+  <div class="row">
+
+    <!-- <div class="col-sm-2"></div>
+    <div class="col-sm-3">
+      <a href="https://drive.google.com/file/d/17ki_YAL1k5CaHHP3pIBFWvw-ztF4CCPP/view?usp=sharing" target="_blank">
+        <p style="text-align:center;">
+          <img src="./NeurIPS2020/paper.png"><br>
+          Paper</p>
+      </a>
+    </div> -->
+
+    <!--<div class="col-sm-2">
+      <a href="https://shihmengli.github.io/3D-Photo-Inpainting/" target="_blank">
+        <p style="text-align:center;">
+          <img src="./NeurIPS2020/pdf.png"><br>
+          Supplementary (High-resolution)</p>
+      </a>
+    </div>
+
+    <div class="col-sm-3">
+      <a href="https://shihmengli.github.io/3D-Photo-Inpainting/" target="_blank">
+        <p style="text-align:center;">
+          <img src="./NeurIPS2020/pdf.png"><br>
+          Paper (ArXiv)</p>
+      </a>
+    </div>
+    <div class="col-sm-2"></div>  -->
+  </div>
+
+
+
+  <div id="footer">
+    <br>
+    <p style="text-align:center;">Copyright © Meng-Li Shih 2020</p>
+  </div>
+</div>
+
+<!-- Javascript includes -->
+<script src="./asset/jquery-1.8.3.min.js"></script>
+<script src="./asset/mystyle.js"></script>
+<script src="./asset/bootstrap.min.js"></script>
+<script src="./Ckin-Video-Player/dist/js/ckin.js"></script>
+<!-- <script async="" src="./asset/analytics.js"></script> -->
+<!-- <script></script> -->
+<!-- <script>
+  (function (i, s, o, g, r, a, m) {
+      i['GoogleAnalyticsObject'] = r;
+      i[r] = i[r] || function () {
+          (i[r].q = i[r].q || []).push(arguments)
+      }, i[r].l = 1 * new Date();
+      a = s.createElement(o),
+          m = s.getElementsByTagName(o)[0];
+      a.async = 1;
+      a.src = g;
+      m.parentNode.insertBefore(a, m)
+  })(window, document, 'script', '//www.google-analytics.com/analytics.js', 'ga');
+  ga('create', 'UA-98479202-1', 'auto');
+  ga('send', 'pageview');
+</script> -->
+<!-- Global site tag (gtag.js) - Google Analytics -->
+
+
+<script>
+  var slideIndex = 1;
+  showSlides(slideIndex);
+  
+  function plusSlides(n) {
+    showSlides(slideIndex += n);
+  }
+  
+  function currentSlide(n) {
+    showSlides(slideIndex = n);
+  }
+  
+  function showSlides(n) {
+    var i;
+    var slides = document.getElementsByClassName("mySlides");
+    var dots = document.getElementsByClassName("dot");
+    
+    if (n > slides.length) {slideIndex = 1}    
+    if (n < 1) {slideIndex = slides.length}
+    for (i = 0; i < slides.length; i++) {
+        slides[i].style.display = "none";  
+        document.getElementById("current_video0"+i).pause();
+    }
+    for (i = 0; i < dots.length; i++) {
+        dots[i].className = dots[i].className.replace(" active", "");
+    }
+    slides[slideIndex-1].style.display = "block";  
+    dots[slideIndex-1].className += " active";
+    document.getElementById("current_video0"+(slideIndex-1)).play()
+  }
+  </script>
+
+<div id="point-jawn" style="z-index: 2147483647;"></div>
 </body>
 </html>
