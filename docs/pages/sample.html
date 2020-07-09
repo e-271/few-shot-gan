@@ -85,9 +85,9 @@
 					<ul class="nav nav-pills" id="current-view-ul">
 						<!-- <li role="presentation" id="tab0"><a href="javascript: void(0);" onclick="ChangeCurrentView(0);">GT</a></li> -->
 						<li role="presentation" id="tab0" class="active"><a href="javascript: void(0);" onclick="ChangeCurrentView(0);">Few-shot GAN (Ours)</a></li>
-						<li role="presentation" id="tab1"><a href="javascript: void(0);" onclick="ChangeCurrentView(1);">Transfer GAN</a></li>
-						<li role="presentation" id="tab2"><a href="javascript: void(0);" onclick="ChangeCurrentView(2);">Freeze D</a></li>
-						<li role="presentation" id="tab3"><a href="javascript: void(0);" onclick="ChangeCurrentView(3);">Scale & Shift</a></li>
+						<li role="presentation" id="tab1"><a href="javascript: void(0);" onclick="ChangeCurrentView(1);">Transfer GAN [Wang et al. 2018]</a></li>
+						<li role="presentation" id="tab2"><a href="javascript: void(0);" onclick="ChangeCurrentView(2);">Freeze D [Mo et al. 2020]</a></li>
+						<li role="presentation" id="tab3"><a href="javascript: void(0);" onclick="ChangeCurrentView(3);">Scale & Shift [Noguchi et al. 2019]</a></li>
 						<!-- <li role="presentation" id="tab5"><a href="javascript: void(0);" onclick="ChangeCurrentView(5);">Ours</a></li> -->
 					</ul>
 				</div>
@@ -243,13 +243,13 @@
 		console.log('123');
 
         
-        if(method=='Transfer GAN'){
+        if(method=='Transfer GAN [Wang et al. 2018]'){
         	var method_p = 't'
 		}
-		if(method=='Freeze D'){
+		if(method=='Freeze D [Mo et al. 2020]'){
         	var method_p = 'fd'
 		}
-		if(method=='Scale & Shift'){
+		if(method=='Scale & Shift [Noguchi et al. 2019]'){
         	var method_p = 's'
 		}
 		if(method=='Few-shot GAN (Ours)'){
@@ -355,7 +355,7 @@
 			document.getElementById("code_link").innerHTML = "Code: <a href='https://github.com/sangwoomo/FreezeD'>link</a>";
 		}
 		if(idx == 3){
-			document.getElementById("method_author").innerHTML = "Noguchi, Atsuhiro and Harada, Tatsuya";
+			document.getElementById("method_author").innerHTML = "Atsuhiro Noguchi, Tatsuya Harada";
 			document.getElementById("method_title").innerHTML = "Image generation from small datasets via batch statistics adaptation";
 			document.getElementById("method_publication").innerHTML = "Proceedings of the IEEE International Conference on Computer Vision (ICCV), 2019";
 			document.getElementById("method_remarks").innerHTML = "";
