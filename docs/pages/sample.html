@@ -67,7 +67,7 @@
 						</div> -->
 						&emsp;
 						<div class="form-group">
-							<label for="frame-idx-input">Frame: <span id="frame-idx">15</span> / <span id="frame-total">49</span>&nbsp;</label>
+							<label for="frame-idx-input">Frame: <span id="frame-idx">00</span> / <span id="frame-total">49</span>&nbsp;</label>
 							<!-- <span id="sequence_name" style="display:inline-block; font-weight:bold; width:150px;">: Toy&nbsp;</span> -->
 							<div class="input-group">
 								<span class="input-group-btn">
@@ -84,7 +84,7 @@
 					<h5><strong>Method:&nbsp;</strong></h5>
 					<ul class="nav nav-pills" id="current-view-ul">
 						<!-- <li role="presentation" id="tab0"><a href="javascript: void(0);" onclick="ChangeCurrentView(0);">GT</a></li> -->
-						<li role="presentation" id="tab0" class="active"><a href="javascript: void(0);" onclick="ChangeCurrentView(0);">Few-shot GAN (ours)</a></li>
+						<li role="presentation" id="tab0" class="active"><a href="javascript: void(0);" onclick="ChangeCurrentView(0);">Few-shot GAN (Ours)</a></li>
 						<li role="presentation" id="tab1"><a href="javascript: void(0);" onclick="ChangeCurrentView(1);">Transfer GAN</a></li>
 						<li role="presentation" id="tab2"><a href="javascript: void(0);" onclick="ChangeCurrentView(2);">Freeze D</a></li>
 						<li role="presentation" id="tab3"><a href="javascript: void(0);" onclick="ChangeCurrentView(3);">Scale & Shift</a></li>
@@ -95,11 +95,11 @@
 				<center><h5 id="disclaimer-2">To compare between different methoods, please slide the bar to the left and click different tabs.</h5> -->
 				</center>
 				<center><h5 id="dataset_link"><a href="http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html">CelebA dataset link</a></h5></center>
-				<center><h5 id="method_author">&nbsp;</h5></center>
-				<center><h5 id="method_title" style="font-weight:bold">&nbsp;</h5></center>
-				<center><h5 id="method_publication">&nbsp;</h5></center>
+				<center><h5 id="method_author"><p>Esther Robb and Jiarui Xu and Vincent Chu and Abhishek Kumar and Jia-Bin Huang</p></h5></center>
+				<center><h5 id="method_title" style="font-weight:bold"><p>Few-shot Domain Transfer for Generative Adversarial Networks</p></h5></center>
+				<center><h5 id="method_publication"><p>arXiv, 2020</p></h5></center>
 				<center><h5 id="method_remarks"></h5></center>
-				<center><h5 id="code_link">&nbsp;</h5></center>
+				<center><h5 id="code_link"><p>Code: <a href='https://github.com/e-271/few-shot-gan'>link</a></p></h5></center>
 			</div>
 			<!-- <div class="col-xs-12 text-center"> -->
 				<!-- <img src="../results/reflection/multi5/00000_B2.jpg" id="showoff-img" class="img-responsive"> -->
@@ -195,6 +195,8 @@
 	function ChangeDataset(){
 
 		var dataset = document.getElementById("dataset-select").value.split(" ")[0];
+		console.log(dataset);
+		console.log('123123123123123123');
 		
 		if(dataset=='3719'){
 			// document.getElementById("sequence_name").innerHTML = ": TGAN&nbsp;";
@@ -250,25 +252,25 @@
 		if(method=='Scale & Shift'){
         	var method_p = 's'
 		}
-		if(method=='Few-shot GAN (ours)'){
+		if(method=='Few-shot GAN (Ours)'){
         	var method_p = 'pca'
 		}
 
 
-		if (dataset=='FFHQ &rarr; Toddler'){
+		if (dataset=='3719'){
 	        var merge_path = "../datasets/merge_3719.jpg";
 		}
-		if (dataset=='FFHQ &rarr; Woman'){
+		if (dataset=='4978'){
 	        var merge_path = "../datasets/merge_4978.jpg";
 		}
-		if (dataset=='Churches &rarr; Van Gogh'){
+		if (dataset=='gogh'){
 	        var pre_path = 'church_pre';
 	        var merge_path = "../datasets/merge_gogh25.jpg";
 		}
-		if (dataset=='FFHQ &rarr; Rem'){
+		if (dataset=='rem'){
 	        var merge_path = "../datasets/merge_rem25.jpg";
 		}
-		if (dataset=='FFHQ &rarr; Portrait'){
+		if (dataset=='portrait'){
 	        var merge_path = "../datasets/merge_portrait25.jpg";
 		}
 
@@ -332,14 +334,14 @@
 	function ChangeCurrentView(idx){
 		// CHANGE TEXT FOR EACH METHOD
 		if(idx == 0){
-			document.getElementById("method_author").innerHTML = "Ours";
-			document.getElementById("method_title").innerHTML = "Few-shot GAN";
-			document.getElementById("method_publication").innerHTML = "&nbsp";
+			document.getElementById("method_author").innerHTML = "Esther Robb and Jiarui Xu and Vincent Chu and Abhishek Kumar and Jia-Bin Huang";
+			document.getElementById("method_title").innerHTML = "Few-shot Domain Transfer for Generative Adversarial Networks";
+			document.getElementById("method_publication").innerHTML = "arXiv, 2020";
 			document.getElementById("method_remarks").innerHTML = "";
-			document.getElementById("code_link").innerHTML = "&nbsp";
+			document.getElementById("code_link").innerHTML = "Code: <a href='https://github.com/e-271/few-shot-gan'>link</a>";
 		}
 		if(idx == 1){
-			document.getElementById("method_author").innerHTML = "Wang, Yaxing and Wu, Chenshen and Herranz, Luis and van de Weijer, Joost and Gonzalez-Garcia, Abel and Raducanu, Bogdan";
+			document.getElementById("method_author").innerHTML = "Yaxing Wang, Chenshen Wu, Luis Herranz, Joost van de Weijer, Abel Gonzalez-Garcia, Bogdan Raducanu";
 			document.getElementById("method_title").innerHTML = "Transferring GANs: Generating images from limited data";
 			document.getElementById("method_publication").innerHTML = "Proceedings of the European Conference on Computer Vision (ECCV), 2018";
 			document.getElementById("method_remarks").innerHTML = "";
