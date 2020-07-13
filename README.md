@@ -120,7 +120,7 @@ If you find this project useful, please cite this work:
 ```
 @article{robb2020fewshotgan,
   title   = {Few-shot Domain Transfer for Generative Adversarial Networks.},
-  author  = {Esther Robb and Jiarui Xu and Vincent Chu and Abhishek Kumar and Jia-Bin Huang},
+  author  = {Robb, Esther and Xu, Jiarui and Chu, Vincent and Kumar, Abhishek and Huang, Jia-Bin},
   journal = {arXiv},
   year    = {2020},
 }
