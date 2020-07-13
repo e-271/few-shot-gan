@@ -113,11 +113,13 @@
 			  </div>
 			  <div class="large-6 columns">
 				  
-				<h4><center><p>Pretrain &#8594; Transfer</p></center></h4>
+<!-- 				<h4><center><p>Pretrain &#8594; Transfer</p></center></h4>
 				  <div class="twentytwenty-container" id='twenty_container'>
 						<img src="../results/ffhq_pre/seed0015.jpg" id="showoff-img-I" style="height: 450px;"/>
 						<img src="../results/3719/pca/seed0015.jpg" id="showoff-img-B" style="height: 450px;"/>
-				</div>
+				</div> -->
+			        <h4><center><p>Random Samples</p></center></h4>
+				<img src="../results/3719/pca/seed0015.jpg" id="showoff-img-B" style="height: 450px;"/>
 			  </div>
 			  
 			</div>
@@ -196,7 +198,6 @@
 
 		var dataset = document.getElementById("dataset-select").value.split(" ")[0];
 		console.log(dataset);
-		console.log('123123123123123123');
 		
 		if(dataset=='3719'){
 			// document.getElementById("sequence_name").innerHTML = ": TGAN&nbsp;";
@@ -239,8 +240,7 @@
   //               var method = $('.nav-pills .active').text();
         var method = $('.nav-pills .active').text();
         var pre_path = 'ffhq_pre';
-		console.log(method);
-		console.log('123');
+	console.log(method);
 
         
         if(method=='Transfer GAN [Wang et al. 2018]'){
