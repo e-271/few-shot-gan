@@ -11,6 +11,7 @@ import tensorflow as tf
 import dnnlib
 import dnnlib.tflib as tflib
 from dnnlib.tflib.autosummary import autosummary
+import PIL.Image
 
 from training import dataset
 from training import misc
@@ -203,7 +204,9 @@ def training_loop(
             rG, rD, rGs = G, D, Gs
             G_lambda_mask = {var: np.ones(G.vars[var].shape[-1]) for var in G.vars if 'SVD/s' in var}
             D_lambda_mask = {'D/' + var: np.ones(D.vars[var].shape[-1]) for var in D.vars if 'SVD/s' in var}
+            G_reduce_dims = {var: (0, int(Gs.vars[var].shape[-1])) for var in Gs.vars if 'SVD/s' in var}
             G_args['lambda_mask'] = G_lambda_mask
+            G_args['reduce_dims'] = G_reduce_dims
             D_args['lambda_mask'] = D_lambda_mask
 
             # Create graph with no SVD operations
@@ -212,9 +215,7 @@ def training_loop(
             Gs = G.clone('Gs')
 
             grid_fakes = G.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
-            #misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_init_G.png'), drange=drange_net, grid_size=(2,2))
             grid_fakes = Gs.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
-            #misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_init_Gs.png'), drange=drange_net, grid_size=(2,2))
 
             G.copy_vars_from(rG)
             D.copy_vars_from(rD)
@@ -222,21 +223,32 @@ def training_loop(
             misc.save_pkl((G, D, Gs), resume_pkl[:-4] + '_svd.pkl')
 
 
-        grid_latents4 = grid_latents[:4] #np.random.randn(4, *G.input_shape[1:])
-        for var in []: #G_lambda_mask.keys():
-            for sv in range(10):
-                name = var.replace('/','')[:-4]
-                for i, n in enumerate([-5, -3, -1, 1, 3, 5]):
-                    G_lambda_mask[var][sv] = n
-                    grid_fakes = G.run(grid_latents4, grid_labels, rho, lambda_mask=G_lambda_mask, is_validation=True, minibatch_size=1)
-                    misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('%s_%d%d_sv%d*=%d.png' % (name, sv, i, sv, n)), drange=drange_net, grid_size=(2,2))
-                G_lambda_mask[var][sv] = 1
-
-
         grid_fakes = G.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
         misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_loaded_G.png'), drange=drange_net, grid_size=(2,2))
         grid_fakes = Gs.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
         misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_loaded_Gs.png'), drange=drange_net, grid_size=(2,2))
+
+
+        sv_plots=False
+        if sv_plots:
+            seed=100
+            rnd = np.random.RandomState(seed)
+            z = rnd.randn(1, *Gs.input_shape[1:]) # [minibatch, component]
+            import pdb; pdb.set_trace()
+            for var in G_lambda_mask.keys():
+                steps=5
+                _, l = G_reduce_dims[var]
+                red = [(0, l // 2), (0, l // 2 + l // 4), (0, 10), (0, 5), (0, 4), (0, 3), (0, 2), (0, 1)]
+                name = var.replace('/','')[:-4]
+                terp = []
+                for i in red:
+                    G_reduce_dims[var] = i
+                    grid_fakes = Gs.run(z, None, rho, lambda_mask=G_lambda_mask, reduce_dims=G_reduce_dims)
+                    terp.append(grid_fakes)
+                G_reduce_dims[var] = 0, l
+                terp = np.concatenate(terp, 2)
+                misc.save_image_grid(terp, dnnlib.make_run_dir_path('%s_seed%04d.png' % (name, seed)), drange=drange_net, grid_size=(1,1))
+
 
 
     # Reduce minibatch size to fit in 16GB GPU memory
@@ -323,6 +335,7 @@ def training_loop(
             if 'lod' in D_gpu.vars: lod_assign_ops += [tf.assign(D_gpu.vars['lod'], lod_in)]
             with tf.control_dependencies(lod_assign_ops):
                 with tf.name_scope('G_loss'):
+                    if G_loss_args['func_name'] == 'training.loss.G_l1': G_loss_args['reals'] = reals_read
                     if AE_args is not None: G_loss, G_reg, G_ae_loss = dnnlib.util.call_func_by_name(AE=AE_gpu, G=G_gpu, D=D_gpu, opt=G_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, **G_loss_args)
                     else: G_loss, G_reg = dnnlib.util.call_func_by_name(G=G_gpu, D=D_gpu, opt=G_opt, training_set=training_set, minibatch_size=minibatch_gpu_in, **G_loss_args)
                 with tf.name_scope('D_loss'):
@@ -460,7 +473,7 @@ def training_loop(
                 #grid_fakes = G.run(grid_latents, grid_labels, rho, is_validation=True, minibatch_size=sched.minibatch_gpu)
                 #misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('test.png'), drange=drange_net, grid_size=grid_size)
                 for _round in rounds:
-                    _g_loss, _g_reg_loss, _ = tflib.run([G_loss, G_reg, G_train_op], feed_dict)
+                    _g_loss, _ = tflib.run([G_loss, G_train_op], feed_dict)
                 if run_G_reg:
                     for _round in rounds:
                         tflib.run(G_reg_op, feed_dict)
@@ -501,7 +514,6 @@ def training_loop(
             # Save snapshots.
             if image_snapshot_ticks is not None and (cur_tick % image_snapshot_ticks == 0 or done):
                 print('g loss', _g_loss)
-                print('g reg loss', _g_reg_loss)
                 grid_fakes = Gs.run(grid_latents, grid_labels, rho, is_validation=True, minibatch_size=sched.minibatch_gpu)
                 misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('fakes%06d.png' % (cur_nimg // 1000)), drange=drange_net, grid_size=grid_size)
 

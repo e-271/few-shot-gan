@@ -15,6 +15,7 @@ import sys
 from dnnlib import EasyDict
 from training import dataset
 from training import networks_stylegan2
+import copy
 
 import pretrained_networks
 import tensorflow as tf
@@ -56,15 +57,6 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle, layer_dset
     Gs_kwargs = dnnlib.EasyDict()
     Gs_kwargs.output_transform = dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True)
     Gs_kwargs.randomize_noise = False
-    G_lambda_mask = {var: np.ones(Gs.vars[var].shape[-1]) for var in Gs.vars if 'SVD/s' in var}
-
-    # ['G_synthesis/4x4/Conv/SVD/s', 'G_synthesis/8x8/Conv0_up/SVD/s', 'G_synthesis/8x8/Conv1/SVD/s', 'G_synthesis/16x16/Conv0_up/SVD/s', 'G_synthesis/16x16/Conv1/SVD/s', 'G_synthesis/32x32/Conv0_up/SVD/s', 'G_synthesis/32x32/Conv1/SVD/s', 'G_synthesis/64x64/Conv0_up/SVD/s', 'G_synthesis/64x64/Conv1/SVD/s', 'G_synthesis/128x128/Conv0_up/SVD/s', 'G_synthesis/128x128/Conv1/SVD/s', 'G_synthesis/256x256/Conv0_up/SVD/s', 'G_synthesis/256x256/Conv1/SVD/s', 'G_synthesis/512x512/Conv0_up/SVD/s', 'G_synthesis/512x512/Conv1/SVD/s', 'G_synthesis/1024x1024/Conv0_up/SVD/s', 'G_synthesis/1024x1024/Conv1/SVD/s', 'G_mapping/Dense0/SVD/s', 'G_mapping/Dense1/SVD/s', 'G_mapping/Dense2/SVD/s', 'G_mapping/Dense3/SVD/s', 'G_mapping/Dense4/SVD/s', 'G_mapping/Dense5/SVD/s', 'G_mapping/Dense6/SVD/s', 'G_mapping/Dense7/SVD/s']
-    
-
-    if 'emb' in network_pkl:
-        Gs_kwargs.dlatent_eps = 0.15
-        Gs_kwargs.learn_dlatents = True
-
     if truncation_psi is not None:
         Gs_kwargs.truncation_psi = truncation_psi
 
@@ -72,102 +64,58 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle, layer_dset
         print('Generating image for seed %d (%d/%d) ...' % (seed, seed_idx, len(seeds)))
         rnd = np.random.RandomState(seed)
         z = rnd.randn(1, *Gs.input_shape[1:]) # [minibatch, component]
+        #z = np.random.randn(1, *Gs.input_shape[1:])
+
+        # tflib.set_vars({var: rnd.randn(*var.shape.as_list()) for var in noise_vars}) # [height, width]
         tflib.set_vars({var: np.random.randn(*var.shape.as_list()) for var in noise_vars}) # [height, width]
         rho = np.array([1])
-        original_images = Gs.run(z, None, rho, **Gs_kwargs) 
-        PIL.Image.fromarray(original_images[0], 'RGB').save(dnnlib.make_run_dir_path('seed%04d.jpg' % seed))            
+        images = Gs.run(z, None, rho, **Gs_kwargs) 
 
-        for var in G_lambda_mask.keys():
-            name = var.replace('/','')[:-4]
-            G_lambda_mask[var][:8] = 10
-            for seed_idx, seed in enumerate(seeds):
-                rnd = np.random.RandomState(seed)
-                z = rnd.randn(1, *Gs.input_shape[1:]) # [minibatch, component]
-                tflib.set_vars({var: np.random.randn(*var.shape.as_list()) for var in noise_vars}) # [height, width]
-                images = Gs.run(z, None, rho, lambda_mask=G_lambda_mask, **Gs_kwargs) 
-                PIL.Image.fromarray(images[0], 'RGB').save(dnnlib.make_run_dir_path('%s_seed%04d.jpg' % (name, seed)))            
-            G_lambda_mask[var][:8] = 1
+        PIL.Image.fromarray(images[0], 'RGB').save(dnnlib.make_run_dir_path('seed%04d.jpg' % seed))            
         print(dnnlib.make_run_dir_path('seed%04d.jpg' % seed))
-        terp=False
-        if terp:
-            sz=5
-            terp_fakes = []
-            terp_rhos = np.linspace(0,1,sz)
-            i = 0
-            # terp_start, terp_stop = z, np.random.randn(1, *Gs.input_shape[1:]) #rnd.randn(1, *Gs.input_shape[1:])
-            terp_start, terp_stop = z, rnd.randn(1, *Gs.input_shape[1:])
-            terp_latent = np.linspace(terp_start, terp_stop, sz)
-            terp_fakes = []
-            for j in range(sz):
-                terp_fake = Gs.run(terp_latent[j], None, rho, **Gs_kwargs)
-                terp_fakes.append(terp_fake)
-            terp_fakes=np.concatenate(terp_fakes, 2)
-            print(terp_fakes.shape)
-            PIL.Image.fromarray(terp_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('terp_latent_seed%04d.jpg' % seed))
-
-        manual_edit = False
-        if manual_edit:
-            e = ''
-            lambda_vars = G_lambda_vars.keys()
-            while True:
-                import pdb; pdb.set_trace()
-                G_lambda_mask[lambda_vars[0]][0] = 1 # Make some change here
-                grid_fakes = Gs.run(z, None, rho, lambda_mask=G_lambda_mask, reduce_dims=G_reduce_dims, **Gs_kwargs)
-                PIL.Image.fromarray(grid_fakes[0], 'RGB').save(dnnlib.make_run_dir_path('seed%04d_edit%s.png' % (seed, e) ))# [minibatch, height, width, channel]
-
-        terp_lambda=False
-        if terp_lambda:
-            # Loop for plotting SVD stuff
-            svs = [0, 1, 2, 3, 4]
-            for var in G_lambda_mask.keys():
-                for sv in svs:
-                    name = var.replace('/','')[:-4]
-                    terp = []
-                    if 'synth' in name: f =  [-3, -1, 1, 3, 5]
-                    elif 'map' in name: f =  [-3, -1, 1, 3, 5]
-                    for i in f:
-                        G_lambda_mask[var][sv] = i
-                        grid_fakes = Gs.run(z, None, rho, lambda_mask=G_lambda_mask, **Gs_kwargs)
-                        terp.append(grid_fakes)
-                    terp = np.concatenate(terp, 2)
-                    PIL.Image.fromarray(terp[0], 'RGB').save(dnnlib.make_run_dir_path('terp_%s_pc%d_seed%04d.png' % (name, sv, seed) ))
-                    G_lambda_mask[var][sv] = 1
 
 
-        # Compare this vs. randomly varying x% of the weights.
-        random_k = 0 # 32
-        if random_k:
-            for var in G_lambda_mask.keys():
-                name = var.replace('/','')[:-4]
+        gvars = [Gs.vars[v] for v in Gs.vars if 'weight' in v and 'mod' not in v and 'ToRGB' not in v]
+        sess = tf.get_default_session()
+        # Interpolate a single basis
+        for var in gvars:
+            name = var.name.split(':')[0].replace('/','_')
+            old_var = sess.run(var)
+            new_var = copy.deepcopy(old_var)
+            if 'synth' in name: f = [-0.5, 0.25, 1, 1.75, 2.5]
+            if 'synth' in name: continue 
+            elif 'map' in name: f =  [-9, -4, 1, 6, 11]
+            #elif 'map' in name: continue 
+            for b in range(1):
                 terp = []
-                for i in range(4):
-                    G_lambda_mask[var][random_k:] = 1 + 0.25 * np.random.randn(*G_lambda_mask[var][random_k:].shape)
-                    grid_fakes = Gs.run(z, None, rho, lambda_mask=G_lambda_mask, **Gs_kwargs)
+                for i in f:
+                    new_var[..., b, :] = old_var[..., b, :] * i
+                    #new_var[..., b] = old_var[..., b] * i
+                    #if i != 1: new_var[..., b, :] *= np.std(old_var[..., b, :]) * 10
+                    sess.run(tf.assign(var, new_var))
+                    grid_fakes = Gs.run(z, None, rho, **Gs_kwargs)
                     terp.append(grid_fakes)
+                sess.run(tf.assign(var, old_var))
                 terp = np.concatenate(terp, 2)
-                PIL.Image.fromarray(terp[0], 'RGB').save(dnnlib.make_run_dir_path('rand_%s_seed%04d.png' % (name, seed) ))
-                G_lambda_mask[var][random_k:] = 1
+                PIL.Image.fromarray(terp[0], 'RGB').save(dnnlib.make_run_dir_path('terp_%s_d%d_seed%04d.png' % (name, b, seed)))
 
-        terp_reduce = False
-        if terp_reduce:
-            G_reduce_dims = {var: (0, int(Gs.vars[var].shape[-1])) for var in Gs.vars if 'SVD/s' in var}
-            for var in G_lambda_mask.keys():
-                _, l = G_reduce_dims[var]
-                #red = [(l // 2), (l // 2 + l // 4), (10), (5), (4), (3), (2), (1)]
-                #red = [(10, l-10), (5, l-5), (4, l-4), (3, l-3), (2, l-2), (1, l-1)]
-                red = [(4, l-4), (1, l-1), (0, l)]
-                name = var.replace('/','')[:-4]
-                terp = []
-                for i in red:
-                    G_reduce_dims[var] = i
-                    grid_fakes = Gs.run(z, None, rho, lambda_mask=G_lambda_mask, reduce_dims=G_reduce_dims, **Gs_kwargs)
-                    terp.append(grid_fakes)
-                G_reduce_dims[var] = (0, l)
-                terp = np.concatenate(terp, 2)
-                PIL.Image.fromarray(terp[0], 'RGB').save(dnnlib.make_run_dir_path('%s_seed%04d.png' % (name, seed) ))
+        # Random assign
+        random_k = 32
+        for var in gvars:
+            name = var.name.split(':')[0].replace('/','_')
+            old_var = sess.run(var)
+            new_var = copy.deepcopy(old_var)
+            terp = []
+            for i in range(4):
+                new_var[..., random_k:] = old_var[..., random_k:] * (1 + 0.25 * np.random.randn(*old_var[..., random_k:].shape))
+                sess.run(tf.assign(var, new_var))
+                grid_fakes = Gs.run(z, None, rho, **Gs_kwargs)
+                terp.append(grid_fakes)
+            terp = np.concatenate(terp, 2)
+            PIL.Image.fromarray(terp[0], 'RGB').save(dnnlib.make_run_dir_path('rand_%s_seed%04d.png' % (name, seed)))
+            sess.run(tf.assign(var, old_var))
+        
 
-
-#----------------------------------------------------------------------------
 
 def style_mixing_example(network_pkl, row_seeds, col_seeds, truncation_psi, col_styles, minibatch_size=4):
     print('Loading networks from "%s"...' % network_pkl)
@@ -294,8 +242,8 @@ Run 'python %(prog)s <subcommand> --help' for subcommand help.''',
     sc.run_desc = subcmd
 
     func_name_map = {
-        'generate-images': 'run_generator.generate_images',
-        'style-mixing-example': 'run_generator.style_mixing_example'
+        'generate-images': 'run_generator_rand.generate_images',
+        'style-mixing-example': 'run_generator_rand.style_mixing_example'
     }
     dnnlib.submit_run(sc, func_name_map[subcmd], **kwargs)
 

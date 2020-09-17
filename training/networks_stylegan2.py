@@ -47,7 +47,7 @@ def get_weight(shape, gain=1, use_wscale=True, lrmul=1, weight_var='weight', ini
 # SVD factorized weight creation
 
 def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var, 
-                   spatial, svd, factorized, sv_factors, svd_center, lambda_mask):
+                   spatial, svd, factorized, sv_factors, svd_center, lambda_mask, reduce_dims):
     # SVD factorized graph
     if svd:
         # Determine SVD variable shapes.
@@ -57,29 +57,26 @@ def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var,
                 s_shape = [sv]
                 u_shape = [shape[0] * shape[1] * shape[2], sv]
                 v_shape = [shape[3], sv]
-                center_shape = [shape[-1]]
                 perm = [1, 0] 
             else:
                 sv = min(shape[2], shape[3])
                 s_shape = [shape[0], shape[1], sv]
                 u_shape = [shape[0], shape[1], shape[2], sv]
                 v_shape = [shape[0], shape[1], shape[3], sv]
-                center_shape = shape[1:]
                 perm=[0, 1, 3, 2]
         elif len(shape) == 2:
-                sv = min(shape[0], shape[1])
-                s_shape = [sv]
-                u_shape = [shape[0], sv]
-                v_shape = [shape[1], sv]
-                center_shape = [shape[1]]
-                perm = [1, 0] 
+            sv = min(shape[0], shape[1])
+            s_shape = [sv]
+            u_shape = [shape[0], sv]
+            v_shape = [shape[1], sv]
+            perm = [1, 0] 
 
         # Create SVD variables
         with tf.variable_scope('SVD'):
             s = tf.get_variable("s", shape=s_shape)
             u = tf.get_variable("u", shape=u_shape)
             v = tf.get_variable("v", shape=v_shape)
-            if svd_center: center = tf.get_variable("center", shape=center_shape)
+            if svd_center: center = tf.get_variable("center", shape=shape)
 
         # Create learnable SV coefficients
         if factorized:
@@ -96,13 +93,28 @@ def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var,
                     k = k * lambda_mask[name]
                 s = k * s
 
+                # Reconstruct weights from SVD factorization
+                if name in reduce_dims:
+                    st, sz = reduce_dims[name]
+                    ssz = np.concatenate([s.shape[:-1], [sz]]).astype(np.int32)
+                    usz = np.concatenate([u.shape[:-1], [sz]]).astype(np.int32)
+                    vsz = np.concatenate([v.shape[:-1], [sz]]).astype(np.int32)
+                    sst = np.concatenate([np.zeros_like(s.shape[:-1]), [st]]).astype(np.int32)
+                    ust = np.concatenate([np.zeros_like(u.shape[:-1]), [st]]).astype(np.int32)
+                    vst = np.concatenate([np.zeros_like(v.shape[:-1]), [st]]).astype(np.int32)
+                    s = tf.slice(s, sst, ssz)
+                    u = tf.slice(u, ust, usz)
+                    v = tf.slice(v, vst, vsz)
+
         # Create weights and perform SVD
         else:
             w = get_weight(shape, gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var)
             if spatial:
                 w = tf.reshape(w, [-1, w.shape[-1]])
             if svd_center: # For PCA
-                _center = tf.reduce_mean(w, 0)
+                _center = tf.reduce_mean(w, axis=-1, keepdims=True)
+                cd = np.concatenate([np.ones_like(_center.shape[:-1]), [int(w.shape[-1])]])
+                _center = tf.tile(_center, cd)
                 center = center.assign(_center)
                 w = w - center
             with tf.variable_scope('SVD'):
@@ -114,7 +126,6 @@ def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var,
                 u = u.assign(_u)
                 v = v.assign(_v)
 
-        # Reconstruct weights from SVD factorization
         w = tf.matmul(tf.matmul(u, tf.linalg.diag(s)), tf.transpose(v, perm=perm))
         if svd_center: w += center
         w = tf.reshape(w, shape)
@@ -128,7 +139,7 @@ def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var,
 #----------------------------------------------------------------------------
 # Fully-connected layer.
 
-def dense_layer(x, fmaps, gain=1, use_wscale=True, lrmul=1, weight_var='weight', svd=False, factorized=False, lambda_mask=None, sv_factors=None, svd_center=False):
+def dense_layer(x, fmaps, gain=1, use_wscale=True, lrmul=1, weight_var='weight', svd=False, factorized=False, lambda_mask=None, reduce_dims=None, sv_factors=None, svd_center=False):
     if len(x.shape) > 2:
         x = tf.reshape(x, [-1, np.prod([d.value for d in x.shape[1:]])])
     w = get_svd_weight([x.shape[1].value, fmaps], 
@@ -138,14 +149,15 @@ def dense_layer(x, fmaps, gain=1, use_wscale=True, lrmul=1, weight_var='weight',
                        factorized=factorized, 
                        sv_factors=sv_factors, 
                        svd_center=svd_center, 
-                       lambda_mask=lambda_mask)
+                       lambda_mask=lambda_mask, 
+                       reduce_dims=reduce_dims)
     w = tf.cast(w, x.dtype)
     return tf.matmul(x, w)
 
 #----------------------------------------------------------------------------
 # Convolution layer with optional upsampling or downsampling.
 
-def conv2d_layer(x, fmaps, kernel, up=False, down=False, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, weight_var='weight', svd=False, factorized=False, sv_factors=None, svd_center=False, adapt_func='training.networks_stylegan2.apply_identity', lambda_mask=None, spatial=False):
+def conv2d_layer(x, fmaps, kernel, up=False, down=False, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, weight_var='weight', svd=False, factorized=False, sv_factors=None, svd_center=False, adapt_func='training.networks_stylegan2.apply_identity', lambda_mask=None, reduce_dims=None, spatial=False):
     assert not (up and down)
     assert kernel >= 1 and kernel % 2 == 1
     x_prev = x
@@ -156,7 +168,8 @@ def conv2d_layer(x, fmaps, kernel, up=False, down=False, resample_kernel=None, g
                        factorized=factorized, 
                        sv_factors=sv_factors, 
                        svd_center=svd_center, 
-                       lambda_mask=lambda_mask)
+                       lambda_mask=lambda_mask,
+                       reduce_dims=reduce_dims)
     if up:
         x = upsample_conv_2d(x, tf.cast(w, x.dtype), data_format='NCHW', k=resample_kernel)
     elif down:
@@ -276,13 +289,13 @@ def apply_adaptive_scale_resshift(x, x_prev):
 # Modulated convolution layer.
 
 
-def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate=True, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, fused_modconv=True, weight_var='weight', mod_weight_var='mod_weight', mod_bias_var='mod_bias', adapt_func='training.networks_stylegan2.apply_identity', rho_in=1, svd=False, factorized=False, sv_factors=None, svd_center=False, lambda_mask=None, spatial=False):
+def modulated_conv2d_layer(x, y, fmaps, kernel, up=False, down=False, demodulate=True, resample_kernel=None, gain=1, use_wscale=True, lrmul=1, fused_modconv=True, weight_var='weight', mod_weight_var='mod_weight', mod_bias_var='mod_bias', adapt_func='training.networks_stylegan2.apply_identity', rho_in=1, svd=False, factorized=False, sv_factors=None, svd_center=False, lambda_mask=None, reduce_dims=None, spatial=False):
     assert not (up and down)
     assert kernel >= 1 and kernel % 2 == 1
     x_prev = x
     w = get_svd_weight([kernel, kernel, x.shape[1].value, fmaps], 
                        gain=gain, use_wscale=use_wscale, lrmul=lrmul, weight_var=weight_var, 
-                       spatial=spatial, svd=svd, factorized=factorized, sv_factors=sv_factors, svd_center=svd_center, lambda_mask=lambda_mask)
+                       spatial=spatial, svd=svd, factorized=factorized, sv_factors=sv_factors, svd_center=svd_center, lambda_mask=lambda_mask, reduce_dims=reduce_dims)
     # w = _get_conv_w(x, fmaps, kernel, gain, use_wscale, lrmul, weight_var, svd, factorized, sv_factors, lambda_mask)
     ww = w[np.newaxis] # [BkkIO] Introduce minibatch dimension.
 
@@ -396,7 +409,6 @@ def G_main(
     # Evaluate mapping network.
     dlatents = components.mapping.get_output_for(latents_in, labels_in, is_training=is_training, **kwargs)
     dlatents = tf.cast(dlatents, tf.float32)
-
     # Update moving average of W.
     if dlatent_avg_beta is not None:
         with tf.variable_scope('DlatentAvg'):
@@ -466,6 +478,9 @@ def G_mapping(
     sv_factors              = 0,
     svd_center               = False,
     lambda_mask             = {},
+    reduce_dims             = {},
+    learn_dlatents          = False,        # Ignore dlatents_in and learn them instead
+    dlatent_eps             = 0,            # Ignore dlatents_in and learn them instead
     **_kwargs):                             # Ignore unrecognized keyword args.
 
     act = mapping_nonlinearity
@@ -476,37 +491,40 @@ def G_mapping(
     latents_in = tf.cast(latents_in, dtype)
     labels_in = tf.cast(labels_in, dtype)
     x = latents_in
+    if learn_dlatents:
+        x = tf.get_variable('adapt/dlatent', shape=[dlatent_size], initializer=tf.initializers.zeros(), trainable=True)
+        x += 0 * latents_in # match batch dimension
+        if dlatent_eps: x += latents_in * dlatent_eps 
 
-    ## add by JR
-    # @todo debug the lambda_mask here
-    if lambda_mask == None:
-        lambda_mask = {layer_idx: tf.ones(dlatent_size) if layer_idx == mapping_layers - 1 else tf.ones(mapping_fmaps) for layer_idx in range(mapping_layers)}
-    ## end add by JR
+    else:
+        if lambda_mask == None:
+            lambda_mask = {layer_idx: tf.ones(dlatent_size) if layer_idx == mapping_layers - 1 else tf.ones(mapping_fmaps) for layer_idx in range(mapping_layers)}
 
-    # Embed labels and concatenate them with latents.
-    if label_size:
-        with tf.variable_scope('LabelConcat'): # Need to relearn label mapping in adaptation
-            w = tf.get_variable('weight', shape=[label_size, latent_size], initializer=tf.initializers.random_normal())
-            y = tf.matmul(labels_in, tf.cast(w, dtype))
-            x = tf.concat([x, y], axis=1)
+        # Embed labels and concatenate them with latents.
+        if label_size:
+            with tf.variable_scope('LabelConcat'): # Need to relearn label mapping in adaptation
+                w = tf.get_variable('weight', shape=[label_size, latent_size], initializer=tf.initializers.random_normal())
+                y = tf.matmul(labels_in, tf.cast(w, dtype))
+                x = tf.concat([x, y], axis=1)
 
-    # Normalize latents.
-    if normalize_latents:
-        with tf.variable_scope('Normalize'):
-            x *= tf.rsqrt(tf.reduce_mean(tf.square(x), axis=1, keepdims=True) + 1e-8)
+        # Normalize latents.
+        if normalize_latents:
+            with tf.variable_scope('Normalize'):
+                x *= tf.rsqrt(tf.reduce_mean(tf.square(x), axis=1, keepdims=True) + 1e-8)
 
-    # Mapping layers.
-    for layer_idx in range(0, mapping_layers):
-        with tf.variable_scope('Dense%d' % layer_idx):
-            fmaps = dlatent_size if layer_idx == mapping_layers - 1 else mapping_fmaps
-            x = apply_bias_act(dense_layer(x,
-                                           fmaps=fmaps,
-                                           lrmul=mapping_lrmul,
-                                           svd=map_svd,
-                                           factorized=factorized,
-                                           sv_factors=sv_factors,
-                                           svd_center=svd_center, 
-                                           lambda_mask=lambda_mask), act=act, lrmul=mapping_lrmul)
+        # Mapping layers.
+        for layer_idx in range(0, mapping_layers):
+            with tf.variable_scope('Dense%d' % layer_idx):
+                fmaps = dlatent_size if layer_idx == mapping_layers - 1 else mapping_fmaps
+                x = apply_bias_act(dense_layer(x,
+                                               fmaps=fmaps,
+                                               lrmul=mapping_lrmul,
+                                               svd=map_svd,
+                                               factorized=factorized,
+                                               sv_factors=sv_factors,
+                                               svd_center=svd_center, 
+                                               lambda_mask=lambda_mask, 
+                                               reduce_dims=reduce_dims), act=act, lrmul=mapping_lrmul)
 
     # Broadcast.
     if dlatent_broadcast is not None:
@@ -657,6 +675,7 @@ def G_synthesis_stylegan2(
     svd_center          = False,
     spatial             = False,
     lambda_mask         = {},
+    reduce_dims         = {},
     **_kwargs):                         # Ignore unrecognized keyword args.
 
     resolution_log2 = int(np.log2(resolution))
@@ -672,7 +691,6 @@ def G_synthesis_stylegan2(
     rho_in = tf.cast(rho_in, dtype)
     dlatents_in.set_shape([None, num_layers, dlatent_size])
     dlatents_in = tf.cast(dlatents_in, dtype)
-
     # Hacky plotting stuff
     if layer_toggle is not None: # For plotting 
         rho_in = rho_in * 0
@@ -702,7 +720,8 @@ def G_synthesis_stylegan2(
                                         sv_factors=sv_factors, 
                                         svd_center=svd_center, 
                                         spatial=spatial, 
-                                        lambda_mask=lambda_mask)
+                                        lambda_mask=lambda_mask, 
+                                        reduce_dims=reduce_dims)
         # Normal behavior
         else:
             x = modulated_conv2d_layer(x, dlatents_in[:, layer_idx],
@@ -718,7 +737,8 @@ def G_synthesis_stylegan2(
                                         sv_factors=sv_factors, 
                                         svd_center=svd_center, 
                                         spatial=spatial, 
-                                        lambda_mask=lambda_mask)
+                                        lambda_mask=lambda_mask, 
+                                        reduce_dims=reduce_dims)
         if randomize_noise:
             noise = tf.random_normal([tf.shape(x)[0], 1, x.shape[2], x.shape[3]], dtype=x.dtype)
         else:
@@ -899,6 +919,7 @@ def D_stylegan2(
     svd                 = False, # TODO replace with dictionary of SVD args
     factorized          = False,
     lambda_mask         = None,
+    reduce_dims         = {},
     sv_factors          = 0,
     svd_center          = False,
     spatial             = False,
@@ -936,7 +957,7 @@ def D_stylegan2(
                                             svd_center=svd_center, 
                                             spatial=spatial, 
                                             adapt_func=adapt_func, 
-                                            lambda_mask=lambda_mask), act=act)
+                                            lambda_mask=lambda_mask, reduce_dims=reduce_dims), act=act)
         with tf.variable_scope('Conv1_down'):
             x = apply_bias_act(conv2d_layer(x, fmaps=nf(res-2), kernel=3, down=True, resample_kernel=resample_kernel, 
                                 svd=svd, 
@@ -945,7 +966,7 @@ def D_stylegan2(
                                 svd_center=svd_center, 
                                 spatial=spatial,
                                 adapt_func=adapt_func, 
-                                lambda_mask=lambda_mask), act=act)
+                                lambda_mask=lambda_mask, reduce_dims=reduce_dims), act=act)
         if architecture == 'resnet':
             with tf.variable_scope('Skip'):
                 t = conv2d_layer(t, fmaps=nf(res-2), kernel=1, down=True, resample_kernel=resample_kernel)
@@ -981,14 +1002,16 @@ def D_stylegan2(
                                             svd_center=svd_center, 
                                             spatial=spatial, 
                                             adapt_func=adapt_func, 
-                                            lambda_mask=lambda_mask), act=act)
+                                            lambda_mask=lambda_mask, 
+                                            reduce_dims=reduce_dims), act=act)
         with tf.variable_scope('Dense0'):
             x = apply_bias_act(dense_layer(x, fmaps=nf(0), 
                                             svd=svd, 
                                             factorized=factorized, 
                                             sv_factors=sv_factors, 
                                             svd_center=svd_center, 
-                                            lambda_mask=lambda_mask), act=act)
+                                            lambda_mask=lambda_mask, 
+                                            reduce_dims=reduce_dims), act=act)
 
     if cos_output:
         # TODO: assumes no labels
@@ -1016,7 +1039,8 @@ def D_stylegan2(
                                                 factorized=factorized, 
                                                 sv_factors=sv_factors, 
                                                 svd_center=svd_center, 
-                                                lambda_mask=lambda_mask))
+                                                lambda_mask=lambda_mask, 
+                                                reduce_dims=reduce_dims))
         scores_out = x
 
         #with tf.variable_scope('Output'):

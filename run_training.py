@@ -36,6 +36,7 @@ _valid_configs = [
     'config-ae', # TODO remove
     'config-fd',
     'config-pc-all',
+    'config-emb',
 
     #'config-a-gb',
     'config-b-g',
@@ -165,6 +166,13 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
 
     train.resume_with_new_nets = True # Recreate with new parameters
     # Adaptive parameter configurations
+
+    if config_id == 'config-emb':
+        G['train_scope'] = '.*adapt' # Freeze old parameters
+        G['learn_dlatents'] = True # Freeze old parameters
+        train.resume_with_new_nets = True # Recreate with new adaptive parameters
+        G_loss = EasyDict(func_name='training.loss.G_l1')
+        D_loss = EasyDict(func_name='training.loss.D_none') 
 
     if config_id in ['config-ss', 'config-ra', 'config-sv', 'config-sv-syn', 'config-sv-map', 'config-sv-all', 'config-ae', 'config-pc-all']:
         G['train_scope'] = D['train_scope'] = '.*adapt' # Freeze old parameters

@@ -33,6 +33,19 @@ def G_logistic_ns(G, D, opt, training_set, minibatch_size):
     loss = tf.nn.softplus(-fake_scores_out) # -log(sigmoid(fake_scores_out))
     return loss, None
 
+
+def G_l1(G, D, opt, training_set, minibatch_size, reals):
+    _ = opt
+    latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
+    labels = training_set.get_random_labels_tf(minibatch_size)
+    rho = np.array([1])
+    fake_images_out = G.get_output_for(latents, labels, rho, is_training=True)
+    loss = tf.reduce_mean(tf.abs(reals - fake_images_out))
+    return loss, None
+
+def D_none(G, D, opt, training_set, minibatch_size, reals, labels):
+    return 0, None
+
 def D_logistic(G, D, opt, training_set, minibatch_size, reals, labels):
     _ = opt, training_set
     latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])

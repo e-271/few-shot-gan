@@ -159,23 +159,23 @@ class MetricGroup:
     def run(self, *args, **kwargs):
         for metric in self.metrics:
             metric.run(*args, **kwargs)
-
-        network_name = os.path.splitext(os.path.basename(self.metrics[0]._network_pkl))[0]
-        row = '%-30s' % network_name
-        for metric in self.metrics:
-            fmt_res = metric._results[-1].fmt % metric._results[-1].value
-            row += '%-20s' % (fmt_res)
-        if 'run_dir' in kwargs:
-            log_file = os.path.join(kwargs['run_dir'], 'metrics.txt')
-            with dnnlib.util.Logger(log_file, 'a'):
-                if not self.log_exists:
-                    head = '%-30s' % "checkpoint"
-                    for metric in self.metrics: head += "%-20s" % metric.name
-                    print(head.strip())
-                    self.log_exists = True
+        if self.metrics:
+            network_name = os.path.splitext(os.path.basename(self.metrics[0]._network_pkl))[0]
+            row = '%-30s' % network_name
+            for metric in self.metrics:
+                fmt_res = metric._results[-1].fmt % metric._results[-1].value
+                row += '%-20s' % (fmt_res)
+            if 'run_dir' in kwargs:
+                log_file = os.path.join(kwargs['run_dir'], 'metrics.txt')
+                with dnnlib.util.Logger(log_file, 'a'):
+                    if not self.log_exists:
+                        head = '%-30s' % "checkpoint"
+                        for metric in self.metrics: head += "%-20s" % metric.name
+                        print(head.strip())
+                        self.log_exists = True
+                    print(row.strip())
+            else:
                 print(row.strip())
-        else:
-            print(row.strip())
 
     def get_result_str(self):
         return ' '.join(metric.get_result_str() for metric in self.metrics)
