@@ -1,20 +1,21 @@
-## Few-shot GAN Official TensorFlow Code
+## FSGAN Official TensorFlow Code
 
 ![Teaser image](./docs/3719_gen_grid_2.png)
 
-**Few-shot Domain Transfer for Generative Adversarial Networks**<br>
-Esther Robb, Jiarui Xu, Vincent Chu, Abhishek Kumar, Jia-Bin Huang<br>
+**Few-Shot Adaptation of Generative Adversarial Networks**<br>
+Esther Robb, Vincent Chu, Abhishek Kumar, Jia-Bin Huang<br>
 
 Paper: <br>
 Website: https://e-271.github.io/few-shot-gan<br>
 
-Abstract: We present Few-shot GAN, a novel approach to adapt a pretrained GAN model to generate new images with only a few training images from a target domain.
-Inspired by component analysis techniques, which have shown to relax training data requirements, we repurpose PCA decomposition on the pretrained GAN's weights to evolve the pretrained GAN into a target-specific GAN.
-Instead of finetuning the entire GAN or just batch statistics as in alternative methods, our method learns to adjust the obtained principal components to reshape the weight subspace, and strikes a balance between parameter efficiency and diversity.
-To detect multi-mode overfitting in the few-shot training, we develop a novel metric to monitor latent space smoothness during the training process.
-Unlike most GANs that often require large-scale training datasets (usually tens or hundreds of thousands of images), the proposed method achieves high-quality, diverse image synthesis in a data-efficient setting (as few as 25 images).
-We demonstrate the effectiveness of our approach on both in-domain and cross-domain transfer settings, including face image personalization and image stylization (e.g. churches &rarr; Van Gogh landscapes and faces &rarr; painting/anime portrait).
-We demonstrate qualitative and quantitative results against competing methods across several datasets.
+Generative Adversarial Networks (GANs) have shown remarkable performance in image synthesis tasks, but typically require a large number of training samples to achieve high-quality synthesis.
+This paper proposes a simple and effective method, Few-Shot GAN (FSGAN), for adapting GANs in few-shot settings (less than 100 images). 
+FSGAN repurposes component analysis techniques and learns to adapt the singular values of the pre-trained weights while freezing the corresponding singular vectors. 
+This provides a highly expressive parameter space for adaptation while constraining changes to the pretrained weights. 
+We validate our method in a challenging few-shot setting of 5-100 images in the target domain. 
+We show that our method has significant visual quality gains compared with existing GAN adaptation methods. 
+We report qualitative and quantitative results showing the effectiveness of our method. 
+We additionally highlight a problem for few-shot synthesis in the standard quantitative metric used by data-efficient image synthesis works.
 
 ## Requirements
 
@@ -32,70 +33,28 @@ create_from_images \
 --resolution 1024
 ```
 
-If you want to evaluate FID, you may want to create a small dataset for few-shot training and a larger dataset for evaluation.
-
+The flag `resolution` is used to resize images to a new size, e.g. 1024x1024.
 
 ## Training networks
 
 Our networks start with pretrained checkpoint pickle from vanilla StyleGAN2 `config-f`, which can be downloaded from Drive here: [StyleGAN2 Checkpoints](https://drive.google.com/corp/drive/folders/1yanUI9m4b4PWzR0eurKNq6JR1Bbfbh6L)
 
-After downloading the pretrain pickle and creating train/eval datasets, define data locations:
+First download the pretrain pickle and creating train/eval datasets.
 
-```
-data_root=/path/to/data/root
-train_dir=relative/path/to/train
-eval_dir=relative/path/to/eval
-pretrain_pickle=/path/to/stylegan2/pickle
-```
+Then train FSGAN (our method) using this command:
 
-Train PCA (our method):
 ```
 python run_training.py \
---data-dir=$data_root \
---dataset-train=$train_dir \
---dataset-eval=$eval_dir \
---resume-pkl=$pretrain_pickle \
---max-images=25 \
---config=config-pc-all \
---lrate-base=0.003 \
+--config=config-ada-sv-flat \
+--data-dir=/path/to/datasets \
+--dataset-train=path/to/train \
+--dataset-eval=path/to/eval \
+--total-kimg=30 \
+--metrics=None
 ```
 
-Train Transfer GAN:
-```
-python run_training.py \
---data-dir=$data_root \
---dataset-train=$train_dir \
---dataset-eval=$eval_dir \
---resume-pkl=$pretrain_pickle \
---max-images=25 \
---config=config-f \
---lrate-base=0.0003 \
-```
+Other values of `config` correspond to SSGAN `config-ss`, FreezeD `config-fd`, and TransferGAN `config-f`.
 
-Train FreezeD:
-```
-python run_training.py \
---data-dir=$data_root \
---dataset-train=$train_dir \
---dataset-eval=$eval_dir \
---resume-pkl=$pretrain_pickle \
---max-images=25 \
---config=config-f \
---lrate-base=0.0003 \
---freeze-d=1
-```
-
-Train Scale & Shift GAN:
-```
-python run_training.py \
---data-dir=$data_root \
---dataset-train=$train_dir \
---dataset-eval=$eval_dir \
---resume-pkl=$pretrain_pickle \
---max-images=25 \
---config=config-ss \
---lrate-base=0.003 \
-```
 
 ## Image generation
 
@@ -107,7 +66,7 @@ python run_generator.py generate-images --network=/path/to/network/pickle --seed
 
 ## Pretrained networks
 
-We provide some pretrained network checkpoints in Drive: [Few-shot GAN Checkpoints](https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing)
+We provide some pretrained network checkpoints in Drive: [Few-Shot GAN Checkpoints](https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing)
 
 ## License
 
@@ -118,9 +77,9 @@ As a modification of the official StyleGAN2 code, this work inherits the Nvidia 
 If you find this project useful, please cite this work:
 
 ```
-@article{robb2020fewshotgan,
-  title   = {Few-shot Domain Transfer for Generative Adversarial Networks.},
-  author  = {Robb, Esther and Xu, Jiarui and Chu, Vincent and Kumar, Abhishek and Huang, Jia-Bin},
+@article{robb2020fsgan,
+  title   = {Few-Shot Adaptation of Generative Adversarial Networks},
+  author  = {Esther Robb and Wen-Sheng Chu and Abhishek Kumar and Jia-Bin Huang},
   journal = {arXiv},
   year    = {2020},
 }
