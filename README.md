@@ -66,7 +66,7 @@ python run_generator.py generate-images --network=/path/to/network/pickle --seed
 
 ## Pretrained networks
 
-We provide some pretrained network checkpoints in Drive: [Few-shot GAN Checkpoints](https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing)
+We provide some pretrained network checkpoints in Drive: [Few-Shot GAN Checkpoints](https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing)
 
 ## License
 
