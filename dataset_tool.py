@@ -383,7 +383,7 @@ def create_char74k(tfrecord_dir, image_dir, shuffle, greyscale=False, resolution
         error('Input images must be stored as RGB or grayscale')
 
 
-    def add_to_tfr(idx, order, tfr, filenames):
+    def add_to_tfr(idx, order, tfr, filenames): # 512×384
         img = PIL.Image.open(filenames[order[idx]]).resize([resolution, resolution])
         if greyscale: img = img.convert('L'); channels=1
         img = np.asarray(img)

@@ -26,17 +26,20 @@ _valid_configs = [
     'config-e', # + No growing, new G & D arch.
     'config-f', # + Large networks (default)
 
-    # Adaptive
-    'config-ss',
-    'config-ra',
-    'config-sv-map',
-    'config-sv-syn',
-    'config-sv-all',
-    'config-sv-spc',
-    'config-ae', # TODO remove
+    # Domain adaptation
+    'config-ada-ss',
+    'config-ada-sv',
+    'config-ada-sv-flat',
+    'config-ada-sv-da',
+    'config-ada-sv-flat-da',
+    'config-ada-sv-flat-V-da',
+    'config-ada-sv-flat-UV-da',
+    'config-ada-sv-UV-da',
+    'config-ada-pc',
+    'config-ada-pc-flat',
     'config-fd',
-    'config-pc-all',
-    'config-emb',
+    'config-da',
+    'config-da-fd',
 
     #'config-a-gb',
     'config-b-g',
@@ -55,7 +58,7 @@ _valid_configs = [
 
 #----------------------------------------------------------------------------
 
-def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, max_images, lrate_base, img_ticks, net_ticks, sv_factors, spatial_svd, skip_images, freeze_d):
+def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eval, data_dir, result_dir, config_id, num_gpus, total_kimg, gamma, mirror_augment, metrics, resume_pkl, resume_kimg, resume_pkl_dir, max_images, lrate_base, img_ticks, net_ticks, skip_images):
 
     if g_loss_kwargs != '': g_loss_kwargs = json.loads(g_loss_kwargs)
     else: g_loss_kwargs = {}
@@ -73,19 +76,17 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
     grid      = EasyDict(size='1080p', layout='random')                           # Options for setup_snapshot_image_grid().
     sc        = dnnlib.SubmitConfig()                                          # Options for dnnlib.submit_run().
     tf_config = {'rnd.np_random_seed': 1000}                                   # Options for tflib.init_tf().
-    AE = AE_loss = AE_opt = None                                               # Default to no autoencoder. 
 
 
     train.total_kimg = total_kimg
     train.mirror_augment = mirror_augment
     train.image_snapshot_ticks = img_ticks
     train.network_snapshot_ticks = net_ticks
-    train.resume_pkl = resume_pkl
-    train.resume_kimg = resume_kimg
     G.scale_func = 'training.networks_stylegan2.apply_identity'
     D.scale_func = None
     sched.G_lrate_base = sched.D_lrate_base = lrate_base #0.002
-    sched.minibatch_size_base = 32
+    # TODO: Changed this to 16 to match DiffAug
+    sched.minibatch_size_base = 16
     sched.minibatch_gpu_base = 4
     D_loss.gamma = 10
     metrics = [metric_defaults[x] for x in metrics]
@@ -95,6 +96,7 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
 
 
     desc += '-' + dataset_train.split('/')[-1]
+    # Get dataset paths
     t_path = dataset_train.split('/')
     e_path = dataset_eval.split('/')
     if len(t_path) > 1:
@@ -104,96 +106,61 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
         dataset_eval = e_path[-1]
         train.eval_data_dir = os.path.join(data_dir, '/'.join(e_path[:-1]))
     dataset_args = EasyDict(tfrecord_dir=dataset_train)
+    # Limit number of training images during train (not eval)
     dataset_args['max_images'] = max_images
+    if max_images: desc += '-%dimg' % max_images
     dataset_args['skip_images'] = skip_images
     dataset_args_eval = EasyDict(tfrecord_dir=dataset_eval)
     desc += '-' + dataset_eval
 
     assert num_gpus in [1, 2, 4, 8]
     sc.num_gpus = num_gpus
-    desc += '-%dgpu' % num_gpus
 
     assert config_id in _valid_configs
     desc += '-' + config_id
-    if spatial_svd: desc += '-spc'
-
-    desc += '-%dimg' % (-1 if max_images==None else max_images)
-
-    #desc += ('-rho%.1E' % rho).replace('+', '')
-
-    #desc += ('-lr%.1E' % lrate_base).replace('+', '')
 
     if mirror_augment: desc += '-aug'
 
-    # Configs A-E: Shrink networks to match original StyleGAN.
-    if config_id in ['config-a', 'config-b', 'config-c', 'config-d', 'config-e']:
-        G.fmap_base = D.fmap_base = 8 << 10
-
-    # Config E: Set gamma to 100 and override G & D architecture.
-    if config_id.startswith('config-e'):
-        D_loss.gamma = 100
-        if 'Gorig'   in config_id: G.architecture = 'orig'
-        if 'Gskip'   in config_id: G.architecture = 'skip' # (default)
-        if 'Gresnet' in config_id: G.architecture = 'resnet'
-        if 'Dorig'   in config_id: D.architecture = 'orig'
-        if 'Dskip'   in config_id: D.architecture = 'skip'
-        if 'Dresnet' in config_id: D.architecture = 'resnet' # (default)
-
-    # Configs A-D: Enable progressive growing and switch to networks that support it.
-    if config_id in ['config-a', 'config-b', 'config-c', 'config-d']:
-        sched.lod_initial_resolution = 8
-        sched.G_lrate_base = sched.D_lrate_base = 0.001
-        sched.G_lrate_dict = sched.D_lrate_dict = {128: 0.0015, 256: 0.002, 512: 0.003, 1024: 0.003}
-        sched.minibatch_size_base = 32 # (default)
-        sched.minibatch_size_dict = {8: 256, 16: 128, 32: 64, 64: 32}
-        sched.minibatch_gpu_base = 4 # (default)
-        sched.minibatch_gpu_dict = {8: 32, 16: 16, 32: 8, 64: 4}
-        G.synthesis_func = 'G_synthesis_stylegan_revised'
-        D.func_name = 'training.networks_stylegan2.D_stylegan'
-
-    # Configs A-C: Disable path length regularization.
-    if config_id in ['config-a', 'config-b', 'config-c']:
-        G_loss = EasyDict(func_name='training.loss.G_logistic_ns')
-
-    # Configs A-B: Disable lazy regularization.
-    if config_id in ['config-a', 'config-b']:
-        train.lazy_regularization = False
-
-    # Config A: Switch to original StyleGAN networks.
-    if config_id == 'config-a':
-        G = EasyDict(func_name='training.networks_stylegan.G_style')
-        D = EasyDict(func_name='training.networks_stylegan.D_basic')
+    # Infer pretrain checkpoint from target dataset
+    if not resume_pkl:
+        if any(ds in dataset_train.lower() for ds in ['obama', 'celeba', 'rem', 'portrait']):
+            resume_pkl = 'ffhq-config-f.pkl'
+        if any(ds in dataset_train.lower() for ds in ['gogh', 'temple', 'tower', 'medici', 'bridge']):
+            resume_pkl = 'church-config-f.pkl'
+        if any(ds in dataset_train.lower() for ds in ['bus']):
+            resume_pkl = 'car-config-f.pkl'
+    resume_pkl = os.path.join(resume_pkl_dir, resume_pkl)
+    train.resume_pkl = resume_pkl
+    train.resume_kimg = resume_kimg
 
     train.resume_with_new_nets = True # Recreate with new parameters
-    # Adaptive parameter configurations
-
-    if config_id == 'config-emb':
-        G['train_scope'] = '.*adapt' # Freeze old parameters
-        G['learn_dlatents'] = True # Freeze old parameters
-        train.resume_with_new_nets = True # Recreate with new adaptive parameters
-        G_loss = EasyDict(func_name='training.loss.G_l1')
-        D_loss = EasyDict(func_name='training.loss.D_none') 
-
-    if config_id in ['config-ss', 'config-ra', 'config-sv', 'config-sv-syn', 'config-sv-map', 'config-sv-all', 'config-ae', 'config-pc-all']:
+    # Adaptive parameters
+    if 'ada' in config_id:
         G['train_scope'] = D['train_scope'] = '.*adapt' # Freeze old parameters
-        train.resume_with_new_nets = True # Recreate with new adaptive parameters
-        if config_id == 'config-ss': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
-        if config_id == 'config-ra': G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
-        if config_id[:9] == 'config-sv' or config_id[:9] == 'config-pc':
-            G['sv_factors'] = D['sv_factors'] = sv_factors
-            desc += '-%dsv' % sv_factors
-            if spatial_svd:
+        if 'ss' in config_id:
+            G['adapt_func'] = D['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_scale_shift'
+        if 'sv' or 'pc' in config_id: # [:9] == 'config-sv' or config_id[:9] == 'config-pc':
+            G['map_svd'] = G['syn_svd'] = D['svd'] = True
+            # Flatten over spatial dimension
+            if 'flat' in config_id:
                 G['spatial'] = D['spatial'] = True
-            if config_id == 'config-sv-syn':
-                G['syn_svd'] = D['svd'] = True
-            elif config_id == 'config-sv-map':
-                G['map_svd'] = D['svd'] = True
-            elif config_id == 'config-sv-all':
-                G['map_svd'] = G['syn_svd'] = D['svd'] = True
-            elif config_id == 'config-pc-all':
-                G['map_svd'] = G['syn_svd'] = D['svd'] = True
+            # Do PCA by centering before SVD
+            if 'pc' in config_id:
                 G['svd_center'] = D['svd_center'] = True
-    D['freeze'] = freeze_d
+            G['svd_config'] = D['svd_config'] = 'S' 
+            if 'U' in config_id:
+                G['svd_config'] += 'U'
+                D['svd_config'] += 'U' 
+            if 'V' in config_id:
+                G['svd_config'] += 'V'
+                D['svd_config'] += 'V' 
+    # FreezeD
+    D['freeze'] = 'fd' in config_id #freeze_d
+    # DiffAug
+    if 'da' in config_id:
+        G_loss = EasyDict(func_name='training.loss.G_ns_diffaug')
+        D_loss = EasyDict(func_name='training.loss.D_ns_diffaug_r1')
+
 
     if gamma is not None:
         D_loss.gamma = gamma
@@ -202,9 +169,9 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
     sc.local.do_not_copy_source_files = True
     kwargs = EasyDict(train)
 
-    kwargs.update(G_args=G, D_args=D, AE_args=AE,
-                  G_opt_args=G_opt, D_opt_args=D_opt, AE_opt_args=AE_opt,
-                  G_loss_args=G_loss, D_loss_args=D_loss, AE_loss_args=AE_loss)
+    kwargs.update(G_args=G, D_args=D,
+                  G_opt_args=G_opt, D_opt_args=D_opt,
+                  G_loss_args=G_loss, D_loss_args=D_loss,)
     kwargs.update(dataset_args=dataset_args, dataset_args_eval=dataset_args_eval, sched_args=sched, grid_args=grid, metric_arg_list=metrics, tf_config=tf_config)
     kwargs.submit_config = copy.deepcopy(sc)
     kwargs.submit_config.run_dir_root = result_dir
@@ -260,17 +227,15 @@ def main():
     parser.add_argument('--d-loss', help='Import path to generator loss function.', default='D_logistic_r1', required=False)
     parser.add_argument('--g-loss-kwargs', help='JSON-formatted keyword arguments for generator loss function.', default='', required=False)
     parser.add_argument('--d-loss-kwargs', help='JSON-formatted keyword arguments for discriminator loss function.', default='', required=False)
-    parser.add_argument('--max-images', help='Maximum number of images to pull from dataset.', default=25, type=int)
-    parser.add_argument('--skip-images', help='Number of images to skip, set negative for random seed', default=0, type=int)
+    parser.add_argument('--max-images', help='Maximum number of images to pull from dataset.', default=None, type=int)
+    parser.add_argument('--skip-images', help='Number of images to skip, set negative for random seed', default=None, type=int)
     parser.add_argument('--num-gpus', help='Number of GPUs (default: %(default)s)', default=1, type=int, metavar='N')
     parser.add_argument('--total-kimg', help='Training length in thousands of images (default: %(default)s)', metavar='KIMG', default=100, type=int)
     parser.add_argument('--gamma', help='R1 regularization weight (default is config dependent)', default=None, type=float)
-    parser.add_argument('--sv-factors', help='Number of singular values to use for SV config (default: all (0))', default=0, type=int)
-    parser.add_argument('--spatial-svd', help='Flatten spatial dimension for SVD (default: False)', default=True, metavar='BOOL', type=_str_to_bool)
     parser.add_argument('--mirror-augment', help='Mirror augment (default: %(default)s)', default=True, metavar='BOOL', type=_str_to_bool)
-    parser.add_argument('--freeze-d', help='Freeze early layers of the discriminator (default:false)', default=False, metavar='BOOL', type=_str_to_bool)
     parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid1k,ppgs1k', type=_parse_comma_sep)
-    parser.add_argument('--resume-pkl', help='Network pickle to resume frome', default='', metavar='DIR')
+    parser.add_argument('--resume-pkl', help='Network pickle name', default='ffhq-config-f.pkl')
+    parser.add_argument('--resume-pkl-dir', help='Directory of network pickles', default='pickles', metavar='DIR')
     parser.add_argument('--lrate-base', help='Base learning rate for G and D', default=0.002, type=float)
     parser.add_argument('--resume-kimg', help='kimg to resume from, affects scheduling', default=0, type=int)
     parser.add_argument('--img-ticks', help='How often to save images', default=1, type=int)

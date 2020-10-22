@@ -77,7 +77,7 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle, layer_dset
         original_images = Gs.run(z, None, rho, **Gs_kwargs) 
         PIL.Image.fromarray(original_images[0], 'RGB').save(dnnlib.make_run_dir_path('seed%04d.jpg' % seed))            
 
-        for var in G_lambda_mask.keys():
+        for var in []:# G_lambda_mask.keys():
             name = var.replace('/','')[:-4]
             G_lambda_mask[var][:8] = 10
             for seed_idx, seed in enumerate(seeds):
@@ -268,7 +268,6 @@ Run 'python %(prog)s <subcommand> --help' for subcommand help.''',
     parser_generate_images.add_argument('--layer-dset', help='Dataset name, needed for layer plots', default=None, metavar='DIR')
     parser_generate_images.add_argument('--layer-ddir', help='Dataset dir, needed for layer plots', default=None, metavar='DIR')
 
-
     parser_style_mixing_example = subparsers.add_parser('style-mixing-example', help='Generate style mixing video')
     parser_style_mixing_example.add_argument('--network', help='Network pickle filename', dest='network_pkl', required=True)
     parser_style_mixing_example.add_argument('--row-seeds', type=_parse_num_range, help='Random seeds to use for image rows', required=True)
@@ -289,8 +288,8 @@ Run 'python %(prog)s <subcommand> --help' for subcommand help.''',
     sc.num_gpus = 1
     sc.submit_target = dnnlib.SubmitTarget.LOCAL
     sc.local.do_not_copy_source_files = True
-    sc.run_dir_root = os.path.dirname(kwargs['network_pkl']) + '/gen_%s' % kwargs['network_pkl'].split('/')[-1].split('.')[0].split('-')[-1]
-    kwargs.pop('result_dir')
+    sc.run_dir_root = kwargs.pop('result_dir') #os.path.dirname(kwargs['network_pkl']) + '/gen_%s' % kwargs['network_pkl'].split('/')[-1].split('.')[0].split('-')[-1]
+    # kwargs.pop('result_dir')
     sc.run_desc = subcmd
 
     func_name_map = {
