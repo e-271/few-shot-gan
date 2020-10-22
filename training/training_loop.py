@@ -209,14 +209,6 @@ def training_loop(
             G.copy_vars_from(rG)
             D.copy_vars_from(rD)
             Gs.copy_vars_from(rGs)
-            misc.save_pkl((G, D, Gs), resume_pkl[:-4] + '_svd_rand.pkl')
-
-
-        #grid_fakes = G.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
-        #misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_loaded_G.png'), drange=drange_net, grid_size=(2,2))
-        #grid_fakes = Gs.run(grid_latents_smol, grid_labels, rho, is_validation=True, minibatch_size=1)
-        #misc.save_image_grid(grid_fakes, dnnlib.make_run_dir_path('_test_loaded_Gs.png'), drange=drange_net, grid_size=(2,2))
-
 
     # Reduce per-gpu minibatch size to fit in 16GB GPU memory
     if grid_reals.shape[2] >= 1024:

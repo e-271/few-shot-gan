@@ -129,16 +129,13 @@ def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var,
                 assert u.shape == _u.shape
                 assert v.shape == _v.shape
             
-                # TODO this is not giving me back the same thing
+                # For plotting SVD vs random basis
                 random_basis=False
                 with tf.variable_scope('random_basis'):
                     if random_basis and _s.shape[0] > 1:
-                        # TODO try the method from Abhishek / Tensorflow functions.
-                        # from scipy.stats import ortho_group
                         a = tf.random.normal([sv, sv])
                         q, r = tf.linalg.qr(a, full_matrices=True)
                         h = q @ tf.linalg.diag(tf.math.sign(tf.linalg.diag_part(r)))
-                        # h = ortho_group.rvs(int(_s.shape[0])) # random orthogonal matrix
                         M = (_u @ tf.linalg.diag(tf.sqrt(_s)) @ h) 
                         N = (_v @ tf.linalg.diag(tf.sqrt(_s)) @ h)
                         L = M / tf.norm(M, axis=0)
@@ -980,7 +977,6 @@ def D_stylegan2(
     else:
         # Output layer with label conditioning from "Which Training Methods for GANs do actually Converge?"
         if labels_in.shape[1] > 0:
-            # TODO: maybe prone to overfitting..
             with tf.variable_scope('adapt/Output'): # Need to re-learn label mapping in adaptation
                 x = apply_bias_act(dense_layer(x, fmaps=labels_in.shape[1], svd=False, factorized=False)) 
                 x = tf.reduce_sum(x * labels_in, axis=1, keepdims=True)

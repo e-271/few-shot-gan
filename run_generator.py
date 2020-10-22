@@ -23,43 +23,14 @@ import tensorflow as tf
 
 def generate_images(network_pkl, seeds, truncation_psi, layer_toggle, layer_dset, layer_ddir):
 
-    # For residual adapter layerwise contribution plots
-    # Instructions for hackage:
-    # vi +552 training/networks_stylegan2.py
-    # rho_in * (latent_idx == <layer>)
-    if layer_toggle:
-        stylegan2_network.layer_toggle = layer_toggle
-        G_args         = EasyDict(func_name='training.networks_stylegan2.G_main')       # Options for generator network.
-        D_args         = EasyDict(func_name='training.networks_stylegan2.D_stylegan2')  # Options for discriminator network.
-        G_args['adapt_func'] = D_args['adapt_func'] = 'training.networks_stylegan2.apply_adaptive_residual_shift'
-        dset=layer_dset # "anime25"
-        dataset_args = EasyDict(tfrecord_dir=dset)
-        data_dir=layer_ddir # "/mnt/slow_ssd/erobb/datasets"
-
-        # Load training set.
-        dnnlib.tflib.init_tf()
-        training_set = dataset.load_dataset(data_dir=dnnlib.convert_path(data_dir), verbose=True, **dataset_args)
-        print('Constructing networks...')
-        _G = tflib.Network('G', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **G_args)
-        _D = tflib.Network('D', num_channels=training_set.shape[0], resolution=training_set.shape[1], label_size=training_set.label_size, **D_args)
-        Gs = _G.clone('Gs')
-        print('Loading networks from "%s"...' % network_pkl)
-        rG, rD, rGs = pretrained_networks.load_networks(network_pkl)
-        _G.copy_vars_from(rG);
-        _D.copy_vars_from(rD);
-        Gs.copy_vars_from(rGs)
-    else:
-        print('Loading networks from "%s"...' % network_pkl)
-        _G, _D, Gs = pretrained_networks.load_networks(network_pkl)
+    print('Loading networks from "%s"...' % network_pkl)
+    _G, _D, Gs = pretrained_networks.load_networks(network_pkl)
 
     noise_vars = [var for name, var in Gs.components.synthesis.vars.items() if name.startswith('noise')]
     Gs_kwargs = dnnlib.EasyDict()
     Gs_kwargs.output_transform = dict(func=tflib.convert_images_to_uint8, nchw_to_nhwc=True)
     Gs_kwargs.randomize_noise = False
     G_lambda_mask = {var: np.ones(Gs.vars[var].shape[-1]) for var in Gs.vars if 'SVD/s' in var}
-
-    # ['G_synthesis/4x4/Conv/SVD/s', 'G_synthesis/8x8/Conv0_up/SVD/s', 'G_synthesis/8x8/Conv1/SVD/s', 'G_synthesis/16x16/Conv0_up/SVD/s', 'G_synthesis/16x16/Conv1/SVD/s', 'G_synthesis/32x32/Conv0_up/SVD/s', 'G_synthesis/32x32/Conv1/SVD/s', 'G_synthesis/64x64/Conv0_up/SVD/s', 'G_synthesis/64x64/Conv1/SVD/s', 'G_synthesis/128x128/Conv0_up/SVD/s', 'G_synthesis/128x128/Conv1/SVD/s', 'G_synthesis/256x256/Conv0_up/SVD/s', 'G_synthesis/256x256/Conv1/SVD/s', 'G_synthesis/512x512/Conv0_up/SVD/s', 'G_synthesis/512x512/Conv1/SVD/s', 'G_synthesis/1024x1024/Conv0_up/SVD/s', 'G_synthesis/1024x1024/Conv1/SVD/s', 'G_mapping/Dense0/SVD/s', 'G_mapping/Dense1/SVD/s', 'G_mapping/Dense2/SVD/s', 'G_mapping/Dense3/SVD/s', 'G_mapping/Dense4/SVD/s', 'G_mapping/Dense5/SVD/s', 'G_mapping/Dense6/SVD/s', 'G_mapping/Dense7/SVD/s']
-    
 
     if 'emb' in network_pkl:
         Gs_kwargs.dlatent_eps = 0.15
@@ -94,7 +65,6 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle, layer_dset
             terp_fakes = []
             terp_rhos = np.linspace(0,1,sz)
             i = 0
-            # terp_start, terp_stop = z, np.random.randn(1, *Gs.input_shape[1:]) #rnd.randn(1, *Gs.input_shape[1:])
             terp_start, terp_stop = z, rnd.randn(1, *Gs.input_shape[1:])
             terp_latent = np.linspace(terp_start, terp_stop, sz)
             terp_fakes = []
@@ -153,8 +123,6 @@ def generate_images(network_pkl, seeds, truncation_psi, layer_toggle, layer_dset
             G_reduce_dims = {var: (0, int(Gs.vars[var].shape[-1])) for var in Gs.vars if 'SVD/s' in var}
             for var in G_lambda_mask.keys():
                 _, l = G_reduce_dims[var]
-                #red = [(l // 2), (l // 2 + l // 4), (10), (5), (4), (3), (2), (1)]
-                #red = [(10, l-10), (5, l-5), (4, l-4), (3, l-3), (2, l-2), (1, l-1)]
                 red = [(4, l-4), (1, l-1), (0, l)]
                 name = var.replace('/','')[:-4]
                 terp = []
