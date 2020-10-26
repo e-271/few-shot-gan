@@ -233,7 +233,7 @@ def main():
     parser.add_argument('--total-kimg', help='Training length in thousands of images (default: %(default)s)', metavar='KIMG', default=100, type=int)
     parser.add_argument('--gamma', help='R1 regularization weight (default is config dependent)', default=None, type=float)
     parser.add_argument('--mirror-augment', help='Mirror augment (default: %(default)s)', default=True, metavar='BOOL', type=_str_to_bool)
-    parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid1k,ppgs1k', type=_parse_comma_sep)
+    parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid1k', type=_parse_comma_sep)
     parser.add_argument('--resume-pkl', help='Network pickle name', default='')
     parser.add_argument('--resume-pkl-dir', help='Directory of network pickles', default='pickles', metavar='DIR')
     parser.add_argument('--lrate-base', help='Base learning rate for G and D', default=0.002, type=float)
