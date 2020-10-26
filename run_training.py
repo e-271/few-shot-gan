@@ -30,11 +30,6 @@ _valid_configs = [
     'config-ada-ss',
     'config-ada-sv',
     'config-ada-sv-flat',
-    'config-ada-sv-da',
-    'config-ada-sv-flat-da',
-    'config-ada-sv-flat-V-da',
-    'config-ada-sv-flat-UV-da',
-    'config-ada-sv-UV-da',
     'config-ada-pc',
     'config-ada-pc-flat',
     'config-fd',
@@ -156,11 +151,6 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
                 D['svd_config'] += 'V' 
     # FreezeD
     D['freeze'] = 'fd' in config_id #freeze_d
-    # DiffAug
-    if 'da' in config_id:
-        G_loss = EasyDict(func_name='training.loss.G_ns_diffaug')
-        D_loss = EasyDict(func_name='training.loss.D_ns_diffaug_r1')
-
 
     if gamma is not None:
         D_loss.gamma = gamma
