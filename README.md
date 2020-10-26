@@ -35,11 +35,13 @@ create_from_images \
 
 The flag `resolution` is used to resize images to a new size, e.g. 1024x1024.
 
-## Training networks
+## Downloading pretrained checkpoints
 
 Our networks start with pretrained checkpoint pickle from vanilla StyleGAN2 `config-f`, which can be downloaded from Drive here: [StyleGAN2 Checkpoints](https://drive.google.com/corp/drive/folders/1yanUI9m4b4PWzR0eurKNq6JR1Bbfbh6L)
 
-First download the pretrain pickle and creating train/eval datasets.
+To replicate experiments from the paper, you will need the FFHQ and Chuches pretrain checkpoints.
+
+## Training networks
 
 Then train FSGAN (our method) using this command:
 
@@ -49,9 +51,12 @@ python run_training.py \
 --data-dir=/path/to/datasets \
 --dataset-train=path/to/train \
 --dataset-eval=path/to/eval \
+--resume-pkl-dir=/path/to/pickles \
 --total-kimg=30 \
---metrics=None
+--metrics=None \
 ```
+
+If the pretrain checkpoint `--resume-pkl` is not given it will be inferred based on training dataset name. 
 
 Other values of `config` correspond to SSGAN `config-ss`, FreezeD `config-fd`, and TransferGAN `config-f`.
 
