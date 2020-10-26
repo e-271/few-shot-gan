@@ -5,7 +5,7 @@
 **Few-Shot Adaptation of Generative Adversarial Networks**<br>
 Esther Robb, Vincent Chu, Abhishek Kumar, Jia-Bin Huang<br>
 
-Paper: <br>
+Paper: https://arxiv.org/pdf/2010.11943.pdf<br>
 Website: https://e-271.github.io/few-shot-gan<br>
 
 Generative Adversarial Networks (GANs) have shown remarkable performance in image synthesis tasks, but typically require a large number of training samples to achieve high-quality synthesis.
@@ -66,7 +66,9 @@ python run_generator.py generate-images --network=/path/to/network/pickle --seed
 
 ## Pretrained networks
 
-We provide some pretrained network checkpoints in Drive: [Few-Shot GAN Checkpoints](https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing)
+We provide some pretrained network checkpoints in Drive: 
+
+[Few-Shot GAN Checkpoints](https://drive.google.com/drive/folders/1uRwA-HspeoQF9k-6AmotEtCH7tsFTjHI?usp=sharing)
 
 ## License
 

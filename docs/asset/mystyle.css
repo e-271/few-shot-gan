@@ -5,7 +5,7 @@ body {
   font-size: 18px;
 }
 h1 {
-  font-size: 40px;
+  font-size: 38px;
   color: #555;
   font-weight: 400;
   text-align: center;
@@ -21,7 +21,7 @@ h1 {
   text-align: center;
   margin: 0;
   padding: 0;
-  margin-bottom: 40px;
+  margin-bottom: 10px;
 }
 .school {
   color: #222;
@@ -30,7 +30,7 @@ h1 {
   text-align: center;
   margin: 0;
   padding: 0;
-  margin-bottom: 40px;
+  margin-bottom: 10px;
 }
 .logoimg {
   text-align: center;
@@ -57,7 +57,7 @@ h2 {
   font-weight: 900;
   border-bottom: 1px solid #999;
   margin-bottom: 20px;
-  margin-top: 60px; /* Add a top margin to avoid content overlay */
+  margin-top: 20px; /* Add a top margin to avoid content overlay */
 }
 
 img.center {
