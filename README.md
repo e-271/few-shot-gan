@@ -51,12 +51,12 @@ python run_training.py \
 --data-dir=/path/to/datasets \
 --dataset-train=path/to/train \
 --dataset-eval=path/to/eval \
---resume-pickle-dir=/path/to/pickles \
+--resume-pkl-dir=/path/to/pickles \
 --total-kimg=30 \
 --metrics=None \
 ```
 
-If the pretrain checkpoint `--resume-pickle` is not given it will be inferred based on training dataset name. 
+If the pretrain checkpoint `--resume-pkl` is not given it will be inferred based on training dataset name. 
 
 Other values of `config` correspond to SSGAN `config-ss`, FreezeD `config-fd`, and TransferGAN `config-f`.
 
