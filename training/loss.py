@@ -10,41 +10,6 @@ import numpy as np
 import tensorflow as tf
 import dnnlib.tflib as tflib
 from dnnlib.tflib.autosummary import autosummary
-from DiffAugment_tf import DiffAugment
-
-#-------------------------------------------
-# DiffAugment loss
-# https://github.com/mit-han-lab/data-efficient-gans
-
-def D_ns_diffaug_r1(G, D, training_set, minibatch_size, reals, gamma=10, policy='color,translation,cutout', **kwargs):
-    latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
-    labels = training_set.get_random_labels_tf(minibatch_size)
-    rho = np.array([1])
-    fakes = G.get_output_for(latents, labels, rho, is_training=True)
-    real_scores = D.get_output_for(DiffAugment(reals, policy=policy, channels_first=True), labels, is_training=True)
-    fake_scores = D.get_output_for(DiffAugment(fakes, policy=policy, channels_first=True), labels, is_training=True)
-    real_scores = autosummary('Loss/scores/real', real_scores)
-    fake_scores = autosummary('Loss/scores/fake', fake_scores)
-    D_loss = tf.nn.softplus(fake_scores) + tf.nn.softplus(-real_scores)
-    D_loss = autosummary('Loss/D_loss', D_loss)
-    with tf.name_scope('GradientPenalty'):
-        real_grads = tf.gradients(tf.reduce_sum(real_scores), [reals])[0]
-        gradient_penalty = tf.reduce_sum(tf.square(real_grads), axis=[1, 2, 3])
-        gradient_penalty = autosummary('Loss/gradient_penalty', gradient_penalty)
-        D_reg = gradient_penalty * (gamma * 0.5)
-    return D_loss, D_reg
-
-def G_ns_diffaug(G, D, training_set, minibatch_size, policy='color,translation,cutout', **kwargs):
-    latents = tf.random_normal([minibatch_size] + G.input_shapes[0][1:])
-    labels = training_set.get_random_labels_tf(minibatch_size)
-    rho = np.array([1])
-    fakes = G.get_output_for(latents, labels, rho, is_training=True)
-    fake_scores = D.get_output_for(DiffAugment(fakes, policy=policy, channels_first=True), labels, is_training=True)
-    fake_scores = autosummary('Loss/scores/fake', fake_scores)
-    G_loss = tf.nn.softplus(-fake_scores)
-    G_loss = autosummary('Loss/G_loss', G_loss)
-    return G_loss, None
-
 
 #----------------------------------------------------------------------------
 # Logistic loss from the paper

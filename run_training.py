@@ -123,11 +123,11 @@ def run(g_loss, g_loss_kwargs, d_loss, d_loss_kwargs, dataset_train, dataset_eva
 
     # Infer pretrain checkpoint from target dataset
     if not resume_pkl:
-        if any(ds in dataset_train.lower() for ds in ['obama', 'celeba', 'rem', 'portrait']):
+        if any(ds in dataset_train.lower() for ds in ['hat', 'obama', 'celeba', 'rem', 'portrait']):
             resume_pkl = 'ffhq-config-f.pkl'
         if any(ds in dataset_train.lower() for ds in ['gogh', 'temple', 'tower', 'medici', 'bridge']):
             resume_pkl = 'church-config-f.pkl'
-        if any(ds in dataset_train.lower() for ds in ['bus']):
+        if any(ds in dataset_train.lower() for ds in ['bus', 'boat', 'bike']):
             resume_pkl = 'car-config-f.pkl'
     resume_pkl = os.path.join(resume_pkl_dir, resume_pkl)
     train.resume_pkl = resume_pkl
@@ -234,7 +234,7 @@ def main():
     parser.add_argument('--gamma', help='R1 regularization weight (default is config dependent)', default=None, type=float)
     parser.add_argument('--mirror-augment', help='Mirror augment (default: %(default)s)', default=True, metavar='BOOL', type=_str_to_bool)
     parser.add_argument('--metrics', help='Comma-separated list of metrics or "none" (default: %(default)s)', default='fid1k,ppgs1k', type=_parse_comma_sep)
-    parser.add_argument('--resume-pkl', help='Network pickle name', default='ffhq-config-f.pkl')
+    parser.add_argument('--resume-pkl', help='Network pickle name', default='')
     parser.add_argument('--resume-pkl-dir', help='Directory of network pickles', default='pickles', metavar='DIR')
     parser.add_argument('--lrate-base', help='Base learning rate for G and D', default=0.002, type=float)
     parser.add_argument('--resume-kimg', help='kimg to resume from, affects scheduling', default=0, type=int)

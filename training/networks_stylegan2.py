@@ -80,7 +80,6 @@ def get_svd_weight(shape, gain, use_wscale, lrmul, weight_var,
         if factorized:
             with tf.variable_scope('SVD'):
                 if sv_factors == 0:
-                    import pdb; pdb.set_trace()
                     if 'S' in svd_config:
                       ss = tf.get_variable('adapt/lambda_s', shape=[sv], initializer=tf.initializers.ones())
                     if 'U' in svd_config:
