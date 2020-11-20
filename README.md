@@ -86,8 +86,8 @@ If you find this project useful, please cite this work:
 ```
 @article{robb2020fsgan,
   title   = {Few-Shot Adaptation of Generative Adversarial Networks},
-  author  = {Esther Robb and Wen-Sheng Chu and Abhishek Kumar and Jia-Bin Huang},
-  journal = {arXiv},
-  year    = {2020},
+  author  = {Robb, Esther and Chu, Wen-Sheng and Kumar, Abhishek and Huang, Jia-Bin},
+  journal = {arXiv preprint arXiv:2010.11943},
+  year    = {2020}
 }
 ```
